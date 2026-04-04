@@ -20,7 +20,6 @@ impl VideoDownloader for YtDlpRepository {
         let video_id = Uuid::new_v4().to_string();
         let video_path = self.download_dir.join(format!("{}.mp4", video_id));
         let audio_path = self.download_dir.join(format!("{}.wav", video_id));
-        let sub_path_base = self.download_dir.join(format!("{}", video_id));
 
         // Download video + audio + subtitles
         let status = Command::new("yt-dlp")
@@ -51,7 +50,6 @@ impl VideoDownloader for YtDlpRepository {
 
         // Check for subtitle file
         let mut sub_path = None;
-        let vtt_pattern = format!("{}.*.vtt", video_id);
         let entries = std::fs::read_dir(&self.download_dir)?;
         for entry in entries {
             let entry = entry?;

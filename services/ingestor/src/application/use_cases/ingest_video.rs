@@ -82,7 +82,7 @@ impl IngestVideoUseCase {
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
 
         // 6. Generate Sync Metadata
-        let mut sync_metadata = serde_json::json!({
+        let sync_metadata = serde_json::json!({
             "job_id": job_id.to_string(),
             "source_url": job.source_url,
             "slides": job.assets_map.iter().map(|s| {
