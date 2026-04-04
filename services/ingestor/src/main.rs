@@ -30,7 +30,10 @@ async fn main() -> anyhow::Result<()> {
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx".to_string());
     let s3_region = std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
     let s3_endpoint = std::env::var("S3_ENDPOINT").ok();
-    let diffusion_url = std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://diffusion-engine.keryx.svc.cluster.local".to_string());
+    let diffusion_url = std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://keryx-diffusion-engine".to_string());
+    let whisper_url = std::env::var("WHISPER_URL").unwrap_or_else(|_| "http://192.168.0.194:9000".to_string());
+    let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://192.168.0.191:11434".to_string());
+
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)?;
 
@@ -39,8 +42,8 @@ async fn main() -> anyhow::Result<()> {
     let storage_repo = Arc::new(S3StorageRepository::new(&s3_region, &s3_bucket, s3_endpoint.as_deref()).await);
     let downloader = Arc::new(YtDlpRepository::new(temp_dir.clone()));
     let analyzer = Arc::new(FfmpegAnalyzer::new(temp_dir.clone()));
-    let stt_repo = Arc::new(WhisperSTTRepository::new("http://192.168.0.194:9000"));
-    let translator = Arc::new(OllamaTranslatorRepository::new("http://192.168.0.191:11434", "llama3"));
+    let stt_repo = Arc::new(WhisperSTTRepository::new(&whisper_url));
+    let translator = Arc::new(OllamaTranslatorRepository::new(&ollama_url, "llama3"));
     let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
 
     // Initialize use cases

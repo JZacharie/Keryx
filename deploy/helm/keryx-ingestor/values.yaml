@@ -9,6 +9,8 @@ service:
   type: ClusterIP
   port: 80
 
+hostNetwork: true
+
 ingress:
   enabled: true
   className: "traefik"
