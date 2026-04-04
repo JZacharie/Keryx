@@ -10,9 +10,9 @@ use crate::domain::entities::job::{Job, JobStatus, StyleConfig};
 
 #[derive(Deserialize)]
 pub struct CreateJobRequest {
-    pub source_url: String,
+    pub video_url: String,
     pub target_langs: Vec<String>,
-    pub prompt: String,
+    pub prompt: Option<String>,
     pub lora: Option<String>,
 }
 
@@ -28,11 +28,11 @@ pub async fn create_job_handler(
     let job_id = Uuid::new_v4();
     let job = Job {
         id: job_id,
-        source_url: payload.source_url,
+        source_url: payload.video_url,
         target_langs: payload.target_langs,
         status: JobStatus::Pending,
         style_config: StyleConfig {
-            prompt: payload.prompt,
+            prompt: payload.prompt.unwrap_or_else(|| "Photorealistic, highly detailed, 8k resolution, cinematic lighting".to_string()),
             lora: payload.lora,
         },
         assets_map: Vec::new(),

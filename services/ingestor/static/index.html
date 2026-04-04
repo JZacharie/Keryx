@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KERYX // PROJECT 2501</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+    <style>
+        :root {
+            --neon-cyan: #00fff9;
+            --neon-magenta: #ff00ff;
+            --neon-green: #39ff14;
+            --neon-orange: #ffaa00;
+            --bg-dark: #0a0f1e;
+            --panel-bg: rgba(10, 15, 30, 0.85);
+            --border-glow: rgba(0, 255, 249, 0.3);
+            --text-primary: #e0e0e0;
+            --text-dim: #708090;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            background-image:
+                linear-gradient(rgba(0, 255, 249, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 249, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* Scanlines effect */
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 650px;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        header {
+            text-align: left;
+            margin-bottom: 3rem;
+            border-left: 4px solid var(--neon-cyan);
+            padding-left: 1.5rem;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: 0.5rem;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--border-glow);
+            margin-bottom: 0.2rem;
+            text-transform: uppercase;
+        }
+
+        .tagline {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--neon-magenta);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2rem;
+            opacity: 0.8;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 4px;
+            padding: 2.5rem;
+            box-shadow: 0 0 30px rgba(0, 255, 249, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: "KERYX_OS_V1.0";
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            color: var(--neon-cyan);
+            opacity: 0.5;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            color: var(--neon-cyan);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-glow);
+            border-radius: 2px;
+            padding: 1rem 1.25rem;
+            color: var(--neon-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 15px var(--border-glow);
+        }
+
+        .langs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .lang-chip {
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.75rem;
+            border: 1px solid var(--border-glow);
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-content: flex-start;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .lang-chip:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .lang-chip.active {
+            border-color: var(--neon-cyan);
+            background: rgba(0, 255, 249, 0.2);
+            color: var(--neon-cyan);
+            box-shadow: inset 0 0 10px rgba(0, 255, 249, 0.2);
+        }
+
+        button {
+            width: 100%;
+            background: transparent;
+            color: var(--neon-cyan);
+            border: 1px solid var(--neon-cyan);
+            padding: 1.1rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::after {
+            content: ">> INITIALIZE";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: var(--neon-cyan);
+            color: var(--bg-dark);
+            box-shadow: 0 0 20px var(--neon-cyan);
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 2rem;
+            padding: 1rem;
+            border-radius: 2px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            display: none;
+            text-transform: uppercase;
+        }
+
+        .status-success { color: var(--neon-green); border: 1px solid var(--neon-green); background: rgba(57, 255, 20, 0.05); }
+        .status-error { color: #ff0033; border: 1px solid #ff0033; background: rgba(255, 0, 51, 0.05); }
+
+        .loader {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid var(--neon-cyan);
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        footer {
+            margin-top: 3.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-align: center;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+        }
+
+        .glitch-text {
+            position: relative;
+        }
+
+        .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            left: 2px;
+            text-shadow: -1px 0 red;
+            top: 0;
+            color: var(--neon-cyan);
+            background: var(--bg-dark);
+            overflow: hidden;
+            clip: rect(0, 900px, 0, 0);
+            animation: glitch-anim 2s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% { clip: rect(10px, 9999px, 50px, 0); }
+            20% { clip: rect(30px, 9999px, 10px, 0); }
+            40% { clip: rect(60px, 9999px, 80px, 0); }
+            60% { clip: rect(10px, 9999px, 40px, 0); }
+            80% { clip: rect(50px, 9999px, 20px, 0); }
+            100% { clip: rect(80px, 9999px, 60px, 0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo glitch-text" data-text="KERYX">Keryx</div>
+        <p class="tagline">"Everything we see is a shadow cast by that which we do not see."</p>
+    </header>
+
+    <div class="card">
+        <form id="ingest-form">
+            <div class="input-group">
+                <label><i class="mdi mdi-youtube"></i> Source_Stream_Interface</label>
+                <input type="text" id="video-url" placeholder="URL://YOUTUBE.COM/WATCH?V=..." required>
+            </div>
+
+            <div class="input-group">
+                <label><i class="mdi mdi-translate"></i> Target_Linguistic_Matrix</label>
+                <div class="langs" id="lang-selection">
+                    <div class="lang-chip active" data-lang="fr"><i class="mdi mdi-earth"></i> FR_MATRIX</div>
+                    <div class="lang-chip" data-lang="es"><i class="mdi mdi-earth"></i> ES_MATRIX</div>
+                    <div class="lang-chip" data-lang="pt"><i class="mdi mdi-earth"></i> PT_MATRIX</div>
+                    <div class="lang-chip" data-lang="en"><i class="mdi mdi-earth"></i> EN_MATRIX</div>
+                </div>
+            </div>
+
+            <button type="submit" id="submit-btn">EXECUTE_INGESTION</button>
+        </form>
+
+        <div id="status"></div>
+    </div>
+
+    <footer>
+        LOG_SESSION: 2026.04.04 // KERYX_UNIT_01 // POWERED_BY_OLLAMA_&_WHISPER
+    </footer>
+</div>
+
+<script>
+    const form = document.getElementById('ingest-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const statusDiv = document.getElementById('status');
+    const langChips = document.querySelectorAll('.lang-chip');
+
+    langChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('active');
+        });
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const videoUrl = document.getElementById('video-url').value;
+        const selectedLangs = Array.from(document.querySelectorAll('.lang-chip.active'))
+                                   .map(c => c.dataset.lang);
+
+        if (selectedLangs.length === 0) {
+            showStatus('ERROR: SELECT_AT_LEAST_ONE_LANGUAGE_PROTOCOL', 'error');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const response = await fetch('/api/jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_url: videoUrl,
+                    target_langs: selectedLangs
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showStatus(`SUCCESS: JOB_ENTRY_CREATED // ID: ${data.job_id}`, 'success');
+                form.reset();
+            } else {
+                showStatus(`CRITICAL_FAILURE: ${data.error || 'SERVER_PROTOCOL_VIOLATION'}`, 'error');
+            }
+        } catch (err) {
+            showStatus(`NETWORK_BRIDGE_COLLAPSE: ${err.message}`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    function setLoading(isLoading) {
+        if (isLoading) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loader"></span> PROCESSING_CORE...';
+            statusDiv.style.display = 'none';
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'EXECUTE_INGESTION';
+        }
+    }
+
+    function showStatus(message, type) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status-${type}`;
+        statusDiv.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>

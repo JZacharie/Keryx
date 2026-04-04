@@ -3,6 +3,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use keryx_ingestor::{
@@ -56,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build routes
     let app = Router::new()
+        .nest_service("/", tower_http::services::ServeDir::new("static").fallback(tower_http::services::ServeFile::new("static/index.html")))
         .route("/health", get(|| async { "OK" }))
         .route("/api/jobs", post(create_job_handler))
         .route("/api/jobs/:id", get(get_job_handler))
