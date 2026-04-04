@@ -27,6 +27,7 @@ EXPOSE 3000
 FROM runner AS release-ci
 ARG PREBUILT_BINARY
 COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
+COPY static static
 RUN chmod +x /usr/local/bin/keryx-ingestor
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
@@ -48,6 +49,7 @@ RUN cargo build --release --bin keryx-ingestor
 
 FROM runner AS release
 COPY --from=builder /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
+COPY --from=builder /app/static static
 RUN chown -R keryx:keryx /app
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
