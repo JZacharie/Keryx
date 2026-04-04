@@ -16,7 +16,7 @@ Verifies the full request lifecycle. Requires Local Redis/MinIO or Cluster acces
 
 ### 2.1 Job Submission (UI -> Backend)
 - **Action**: Use the web interface at `https://keryx.p.zacharie.org` (or `http://localhost:3000`).
-- **Input**: `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+- **Input**: `https://www.youtube.com/watch?v=PsPqWLoZaMc`
 - **Languages**: Select FR, EN.
 - **Expectation**: `API 202 ACCEPTED` with a unique UUID. Check Redis (`KEYS *`) to see the entry.
 

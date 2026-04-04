@@ -41,9 +41,12 @@ impl IngestVideoUseCase {
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
         let (video_path, audio_path) = self.downloader.download(&job.source_url).await?;
 
-        // 2. Upload audio
+        // 2. Upload audio and video
         let audio_remote = format!("jobs/{}/raw/audio.wav", job_id);
         self.storage_repo.upload_file(&audio_path, &audio_remote).await?;
+
+        let video_remote = format!("jobs/{}/raw/video.mp4", job_id);
+        self.storage_repo.upload_file(&video_path, &video_remote).await?;
 
         // 3. Analyze
         self.job_repo.update_status(job_id, JobStatus::Analyzing).await?;
