@@ -24,7 +24,7 @@ impl VideoAnalyzer for FfmpegAnalyzer {
             .arg("-i")
             .arg(video_path)
             .arg("-vf")
-            .arg("select='gt(scene,0.05)',showinfo")
+            .arg("select='gt(scene,0.2)',showinfo")
             .arg("-vsync")
             .arg("vfr")
             .arg("-q:v")
