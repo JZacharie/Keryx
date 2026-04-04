@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build routes
     let app = Router::new()
+        .route("/health", get(|| async { "OK" }))
         .route("/api/jobs", post(create_job_handler))
         .route("/api/jobs/:id", get(get_job_handler))
         .layer(CorsLayer::permissive())
