@@ -121,6 +121,7 @@ impl IngestVideoUseCase {
             (s.timestamp, next)
         }).collect();
 
+        let total_slides = job.assets_map.len();
         for (i, slide) in job.assets_map.iter_mut().enumerate() {
             let (start, next_start) = slide_offsets[i];
             let slide_text: Vec<String> = transcription.segments.iter()
@@ -131,7 +132,7 @@ impl IngestVideoUseCase {
             let original_text = slide_text.join(" ");
 
             // 7. Translate
-            tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, job.assets_map.len());
+            tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, total_slides);
             for lang in &job.target_langs {
                 let translated = self.translator.translate(&original_text, lang).await?;
                 tracing::debug!("[Job {}] Translated text for lang {}: {}", job_id, lang, translated);
