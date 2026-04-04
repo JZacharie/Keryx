@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use crate::domain::ports::video_repository::VideoAnalyzer;
 
@@ -19,9 +19,9 @@ impl VideoAnalyzer for FfmpegAnalyzer {
     async fn detect_slides(&self, video_path: &PathBuf) -> Result<Vec<(u32, f64, PathBuf)>> {
         // Use ffmpeg to detect scene changes and extract frames
         // ffmpeg -i video.mp4 -vf "select='gt(scene,0.03)',setpts=N/FRAME_RATE/TB" -vsync vfr out%03d.png
-        
+
         let output_pattern = self.output_dir.join("frame_%03d.png");
-        
+
         let status = Command::new("ffmpeg")
             .arg("-i")
             .arg(video_path)
@@ -40,7 +40,7 @@ impl VideoAnalyzer for FfmpegAnalyzer {
         // For simplicity in this demo, we'll assume frames are extracted and we'll just list them.
         let mut slides = Vec::new();
         let mut index = 0;
-        
+
         // Let's assume we find frames in the directory
         let entries = std::fs::read_dir(&self.output_dir)?;
         for entry in entries {

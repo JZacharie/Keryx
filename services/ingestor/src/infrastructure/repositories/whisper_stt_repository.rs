@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use anyhow::{Result, Context};
+use anyhow::Result;
 use std::path::PathBuf;
 use crate::domain::ports::stt_repository::{STTRepository, TranscriptionResult, TranscriptionSegment};
 use reqwest::multipart;
@@ -43,7 +43,7 @@ impl STTRepository for WhisperSTTRepository {
         }
 
         let result: WhisperResponse = response.json().await?;
-        
+
         let segments = result.segments.into_iter().map(|s| {
             TranscriptionSegment {
                 start: s.start,

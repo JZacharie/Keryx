@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use anyhow::{Result, anyhow, Context};
-use std::path::{Path, PathBuf};
+use anyhow::{Result, anyhow};
+use std::path::PathBuf;
 use std::process::Command;
 use crate::domain::ports::video_repository::VideoDownloader;
 

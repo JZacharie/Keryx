@@ -11,10 +11,13 @@ pub struct S3StorageRepository {
 
 impl S3StorageRepository {
     pub async fn new(region: &str, bucket: &str, endpoint: Option<&str>) -> Self {
-        let mut config_loader = aws_config::from_env().region(aws_config::Region::new(region.to_string()));
+        let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new(region.to_string()));
+
         if let Some(ep) = endpoint {
             config_loader = config_loader.endpoint_url(ep);
         }
+
         let config = config_loader.load().await;
         let client = Client::new(&config);
         Self { client, bucket: bucket.to_string() }

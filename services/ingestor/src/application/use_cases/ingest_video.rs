@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use uuid::Uuid;
-use anyhow::Result;
+use anyhow::{Result, Context};
 use crate::domain::ports::job_repository::JobRepository;
 use crate::domain::ports::storage_repository::StorageRepository;
 use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
@@ -79,7 +79,7 @@ impl IngestVideoUseCase {
         for (i, slide) in job.assets_map.iter_mut().enumerate() {
             let (start, next_start) = slide_offsets[i];
             let slide_text: Vec<String> = transcription.segments.iter()
-                .filter(|s| s.start >= start && next_start.map_or(true, |ns| s.end <= ns))
+                .filter(|s| s.start >= start && next_start.map_or(true, |ns: f64| s.end <= ns))
                 .map(|s| s.text.clone())
                 .collect();
 

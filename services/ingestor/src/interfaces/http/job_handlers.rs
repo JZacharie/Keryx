@@ -7,7 +7,6 @@ use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::domain::entities::job::{Job, JobStatus, StyleConfig};
-use anyhow::Result;
 
 #[derive(Deserialize)]
 pub struct CreateJobRequest {
@@ -52,7 +51,7 @@ pub async fn create_job_handler(
             let _ = use_case.get_job_repo().update_status(job_id, JobStatus::Failed(e.to_string())).await;
         }
     });
-    
+
     (axum::http::StatusCode::ACCEPTED, Json(CreateJobResponse { job_id })).into_response()
 }
 
