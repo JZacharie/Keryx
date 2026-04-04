@@ -39,9 +39,13 @@ tolerations:
     value: "gpu"
     effect: "NoSchedule"
 
+runtimeClassName: nvidia
+
 env:
   S3_ENDPOINT: "https://minio-170-api.zacharie.org"
   S3_BUCKET: "keryx"
   MODEL_ID: "stabilityai/sdxl-turbo"
   AWS_ACCESS_KEY_ID: "REDACTED" # pragma: allowlist secret
   AWS_SECRET_ACCESS_KEY: "REDACTED" # pragma: allowlist secret
+  NVIDIA_VISIBLE_DEVICES: "all"
+  NVIDIA_DRIVER_CAPABILITIES: "compute,utility"

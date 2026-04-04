@@ -44,8 +44,9 @@ impl VideoDownloader for YtDlpRepository {
             .arg(url)
             .status()?;
 
-        if !status.success() {
-            return Err(anyhow!("yt-dlp failed with status: {}", status));
+        // If it fails but the video file was created, we proceed (subtitles might have failed)
+        if !status.success() && !video_path.exists() {
+            return Err(anyhow!("yt-dlp failed with status: {} and no video file was created", status));
         }
 
         // Check for subtitle file
