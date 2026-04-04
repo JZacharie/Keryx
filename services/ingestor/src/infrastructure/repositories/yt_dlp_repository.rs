@@ -16,12 +16,13 @@ impl YtDlpRepository {
 
 #[async_trait]
 impl VideoDownloader for YtDlpRepository {
-    async fn download(&self, url: &str) -> Result<(PathBuf, PathBuf)> {
+    async fn download(&self, url: &str) -> Result<(PathBuf, PathBuf, Option<PathBuf>)> {
         let video_id = Uuid::new_v4().to_string();
         let video_path = self.download_dir.join(format!("{}.mp4", video_id));
         let audio_path = self.download_dir.join(format!("{}.wav", video_id));
+        let sub_path_base = self.download_dir.join(format!("{}", video_id));
 
-        // Download video + audio
+        // Download video + audio + subtitles
         let status = Command::new("yt-dlp")
             .arg("-v")
             .arg("-f")
@@ -32,6 +33,10 @@ impl VideoDownloader for YtDlpRepository {
             .arg("aria2c")
             .arg("--js-runtimes")
             .arg("node")
+            .arg("--write-subs")
+            .arg("--write-auto-subs")
+            .arg("--sub-format")
+            .arg("vtt")
             .arg("--no-playlist")
             .arg("--no-check-certificates")
             .arg("--geo-bypass")
@@ -44,8 +49,20 @@ impl VideoDownloader for YtDlpRepository {
             return Err(anyhow!("yt-dlp failed with status: {}", status));
         }
 
+        // Check for subtitle file
+        let mut sub_path = None;
+        let vtt_pattern = format!("{}.*.vtt", video_id);
+        let entries = std::fs::read_dir(&self.download_dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let name = entry.file_name().into_string().unwrap_or_default();
+            if name.starts_with(&video_id) && name.ends_with(".vtt") {
+                sub_path = Some(entry.path());
+                break;
+            }
+        }
+
         // Extract audio to wav
-        // ffmpeg -i video.mp4 -vn -acodec pcm_s16le -ar 16000 -ac 1 audio.wav
         let status = Command::new("ffmpeg")
             .arg("-i")
             .arg(&video_path)
@@ -56,6 +73,7 @@ impl VideoDownloader for YtDlpRepository {
             .arg("16000")
             .arg("-ac")
             .arg("1")
+            .arg("-y")
             .arg(&audio_path)
             .status()?;
 
@@ -63,7 +81,7 @@ impl VideoDownloader for YtDlpRepository {
             return Err(anyhow!("ffmpeg audio extraction failed with status: {}", status));
         }
 
-        Ok((video_path, audio_path))
+        Ok((video_path, audio_path, sub_path))
     }
 }
 

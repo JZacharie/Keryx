@@ -17,39 +17,45 @@ impl FfmpegAnalyzer {
 #[async_trait]
 impl VideoAnalyzer for FfmpegAnalyzer {
     async fn detect_slides(&self, video_path: &PathBuf) -> Result<Vec<(u32, f64, PathBuf)>> {
-        // Use ffmpeg to detect scene changes and extract frames
-        // ffmpeg -i video.mp4 -vf "select='gt(scene,0.03)',setpts=N/FRAME_RATE/TB" -vsync vfr out%03d.png
+        let output_pattern = self.output_dir.join("frame_%04d.jpg");
 
-        let output_pattern = self.output_dir.join("frame_%03d.png");
-
-        let status = Command::new("ffmpeg")
+        // ffmpeg -i video.mp4 -vf "select='gt(scene,0.05)',showinfo" -vsync vfr -q:v 2 out%04d.jpg
+        let output = Command::new("ffmpeg")
             .arg("-i")
             .arg(video_path)
             .arg("-vf")
-            .arg("select='gt(scene,0.03)',setpts=N/FRAME_RATE/TB")
+            .arg("select='gt(scene,0.05)',showinfo")
             .arg("-vsync")
             .arg("vfr")
+            .arg("-q:v")
+            .arg("2")
+            .arg("-y")
             .arg(&output_pattern)
-            .status()?;
+            .output()?; // We capture output to get stderr
 
-        if !status.success() {
+        if !output.status.success() {
             return Err(anyhow!("ffmpeg scene detection failed"));
         }
 
-        // We also need timestamps. This is harder with just a single command.
-        // For simplicity in this demo, we'll assume frames are extracted and we'll just list them.
+        let stderr = String::from_utf8_lossy(&output.stderr);
         let mut slides = Vec::new();
-        let mut index = 0;
+        let mut frame_count = 1;
 
-        // Let's assume we find frames in the directory
-        let entries = std::fs::read_dir(&self.output_dir)?;
-        for entry in entries {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("png") {
-                // In a real implementation, we'd parse timestamps from ffmpeg output
-                slides.push((index, index as f64 * 10.0, path));
-                index += 1;
+        for line in stderr.lines() {
+            if line.contains("showinfo") && line.contains("pts_time") {
+                // Parse pts_time:xxxx from the line
+                if let Some(pts_idx) = line.find("pts_time:") {
+                    let part = &line[pts_idx + 9..];
+                    if let Some(space_idx) = part.find(' ') {
+                        if let Ok(ts) = part[..space_idx].parse::<f64>() {
+                            let frame_path = self.output_dir.join(format!("frame_{:04}.jpg", frame_count));
+                            if frame_path.exists() {
+                                slides.push((frame_count as u32, ts, frame_path));
+                                frame_count += 1;
+                            }
+                        }
+                    }
+                }
             }
         }
 

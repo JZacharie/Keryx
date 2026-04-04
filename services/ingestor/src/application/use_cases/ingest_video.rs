@@ -39,14 +39,19 @@ impl IngestVideoUseCase {
 
         // 1. Download
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
-        let (video_path, audio_path) = self.downloader.download(&job.source_url).await?;
+        let (video_path, audio_path, subtitle_path) = self.downloader.download(&job.source_url).await?;
 
-        // 2. Upload audio and video
+        // 2. Upload raw assets
         let audio_remote = format!("jobs/{}/raw/audio.wav", job_id);
         self.storage_repo.upload_file(&audio_path, &audio_remote).await?;
 
         let video_remote = format!("jobs/{}/raw/video.mp4", job_id);
         self.storage_repo.upload_file(&video_path, &video_remote).await?;
+
+        if let Some(sub_path) = &subtitle_path {
+            let sub_remote = format!("jobs/{}/raw/subtitles.vtt", job_id);
+            self.storage_repo.upload_file(sub_path, &sub_remote).await?;
+        }
 
         // 3. Analyze
         self.job_repo.update_status(job_id, JobStatus::Analyzing).await?;
@@ -55,7 +60,7 @@ impl IngestVideoUseCase {
         // 4. Upload frames and build job asset map
         let mut slide_assets = Vec::new();
         for (index, timestamp, frame_path) in slides {
-            let frame_remote = format!("jobs/{}/raw/frame_{}.png", job_id, index);
+            let frame_remote = format!("jobs/{}/raw/frame_{:04}.jpg", job_id, index);
             let frame_url = self.storage_repo.upload_file(&frame_path, &frame_remote).await?;
 
             slide_assets.push(SlideAsset {
@@ -73,6 +78,32 @@ impl IngestVideoUseCase {
         // 5. Transcribe
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
 
+        // 6. Generate Sync Metadata
+        let mut sync_metadata = serde_json::json!({
+            "job_id": job_id.to_string(),
+            "source_url": job.source_url,
+            "slides": job.assets_map.iter().map(|s| {
+                serde_json::json!({
+                    "index": s.slide_index,
+                    "timestamp": s.timestamp,
+                    "frame_url": s.original_frame
+                })
+            }).collect::<Vec<_>>(),
+            "transcription": transcription.segments.iter().map(|s| {
+                serde_json::json!({
+                    "start": s.start,
+                    "end": s.end,
+                    "text": s.text
+                })
+            }).collect::<Vec<_>>()
+        });
+
+        let metadata_path = video_path.with_file_name(format!("{}_metadata.json", job_id));
+        std::fs::write(&metadata_path, serde_json::to_string_pretty(&sync_metadata)?)?;
+
+        let metadata_remote = format!("jobs/{}/sync_metadata.json", job_id);
+        self.storage_repo.upload_file(&metadata_path, &metadata_remote).await?;
+
         // Match transcription segments to slides
         let slide_offsets: Vec<(f64, Option<f64>)> = job.assets_map.iter().enumerate().map(|(i, s)| {
             let next = job.assets_map.get(i+1).map(|ns| ns.timestamp);
@@ -82,13 +113,13 @@ impl IngestVideoUseCase {
         for (i, slide) in job.assets_map.iter_mut().enumerate() {
             let (start, next_start) = slide_offsets[i];
             let slide_text: Vec<String> = transcription.segments.iter()
-                .filter(|s| s.start >= start && next_start.map_or(true, |ns: f64| s.end <= ns))
+                .filter(|s| s.start >= start && next_start.map_or(true, |ns: f64| s.end < ns))
                 .map(|s| s.text.clone())
                 .collect();
 
             let original_text = slide_text.join(" ");
 
-            // 6. Translate
+            // 7. Translate
             for lang in &job.target_langs {
                 let translated = self.translator.translate(&original_text, lang).await?;
                 slide.translations.insert(lang.clone(), TranslationAsset {

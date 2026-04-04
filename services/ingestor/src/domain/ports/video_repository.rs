@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[async_trait]
 pub trait VideoDownloader: Send + Sync {
-    async fn download(&self, url: &str) -> Result<(PathBuf, PathBuf)>; // (video_path, audio_path)
+    async fn download(&self, url: &str) -> Result<(PathBuf, PathBuf, Option<PathBuf>)>; // (video_path, audio_path, subtitle_path)
 }
 
 #[async_trait]
