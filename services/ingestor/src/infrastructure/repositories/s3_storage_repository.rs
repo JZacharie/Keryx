@@ -19,7 +19,10 @@ impl S3StorageRepository {
         }
 
         let config = config_loader.load().await;
-        let client = Client::new(&config);
+        let s3_config = aws_sdk_s3::config::Builder::from(&config)
+            .force_path_style(true)
+            .build();
+        let client = Client::from_conf(s3_config);
         Self { client, bucket: bucket.to_string() }
     }
 }
