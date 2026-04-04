@@ -142,6 +142,9 @@ async def style_image(request: StylingRequest):
 
         stylized_image = images[0]
 
+        # Convert to Black and White for validation as requested
+        stylized_image = stylized_image.convert("L").convert("RGB")
+
         # 4. Upload result
         if not request.target_path:
             filename = f"styled_{uuid_pkg.uuid4()}.jpg"
