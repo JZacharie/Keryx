@@ -35,7 +35,7 @@ pipe = AutoPipelineForImage2Image.from_pretrained(
 pipe.to(DEVICE)
 if DEVICE == "cuda":
     pipe.enable_attention_slicing()
-    # pipe.enable_model_cpu_offload() # Can be slow but saves VRAM
+    pipe.enable_model_cpu_offload() # This is the most memory-efficient way
 print("Model loaded successfully.")
 
 s3_client = boto3.client(
