@@ -22,12 +22,15 @@ impl VideoDownloader for YtDlpRepository {
         let audio_path = self.download_dir.join(format!("{}.wav", video_id));
 
         // Download video + audio
-        // yt-dlp -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' --merge-output-format mp4 -o 'video.mp4' <url>
         let status = Command::new("yt-dlp")
             .arg("-f")
             .arg("bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best")
             .arg("--merge-output-format")
             .arg("mp4")
+            .arg("--external-downloader")
+            .arg("aria2c")
+            .arg("--no-playlist")
+            .arg("--no-check-certificates")
             .arg("-o")
             .arg(&video_path)
             .arg(url)
