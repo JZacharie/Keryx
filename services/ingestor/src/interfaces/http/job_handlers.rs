@@ -32,7 +32,7 @@ pub async fn create_job_handler(
         target_langs: payload.target_langs,
         status: JobStatus::Pending,
         style_config: StyleConfig {
-            prompt: payload.prompt.unwrap_or_else(|| "Photorealistic, highly detailed, 8k resolution, cinematic lighting".to_string()),
+            prompt: payload.prompt.unwrap_or_else(|| "Modern professional SaaS presentation, clean corporate layout, high fidelity, sharp focus".to_string()),
             lora: payload.lora,
         },
         assets_map: Vec::new(),
