@@ -6,6 +6,7 @@ use crate::domain::ports::storage_repository::StorageRepository;
 use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
 use crate::domain::ports::stt_repository::STTRepository;
 use crate::domain::ports::translator_repository::TranslatorRepository;
+use crate::domain::ports::stylizer_repository::StylizerRepository;
 use crate::domain::entities::job::{JobStatus, SlideAsset, TranslationAsset};
 
 pub struct IngestVideoUseCase {
@@ -15,6 +16,7 @@ pub struct IngestVideoUseCase {
     analyzer: Arc<dyn VideoAnalyzer>,
     stt_repo: Arc<dyn STTRepository>,
     translator: Arc<dyn TranslatorRepository>,
+    stylizer: Arc<dyn StylizerRepository>,
 }
 
 impl IngestVideoUseCase {
@@ -25,8 +27,9 @@ impl IngestVideoUseCase {
         analyzer: Arc<dyn VideoAnalyzer>,
         stt_repo: Arc<dyn STTRepository>,
         translator: Arc<dyn TranslatorRepository>,
+        stylizer: Arc<dyn StylizerRepository>,
     ) -> Self {
-        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator }
+        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator, stylizer }
     }
 
     pub fn get_job_repo(&self) -> Arc<dyn JobRepository> {
@@ -122,9 +125,14 @@ impl IngestVideoUseCase {
             // 7. Translate
             for lang in &job.target_langs {
                 let translated = self.translator.translate(&original_text, lang).await?;
+
+                // 8. Style Image
+                let style_prompt = "Cyberpunk glassmorphism style, vibrant neon highlights, professional presentation, high quality, sharp focus";
+                let styled_url = self.stylizer.style_image(&slide.original_frame, style_prompt).await?;
+
                 slide.translations.insert(lang.clone(), TranslationAsset {
                     text: translated,
-                    styled_image: None,
+                    styled_image: Some(styled_url),
                     audio: None,
                     duration: 0.0,
                 });

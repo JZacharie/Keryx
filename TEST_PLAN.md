@@ -30,14 +30,18 @@ Check MinIO (`keryx-raw` bucket) during ingestion phases:
 - `jobs/<id>/raw/audio.wav` (Ingest phase)
 - `jobs/<id>/raw/frame_*.png` (Analysis phase)
 
-## 3. Distributed Pipeline Verification
-Verify communication with sister services in the `jo3` cluster.
-
-| Service | Check Method | Expected Output |
-|---------|--------------|-----------------|
-| **Whisper STT** | `curl 192.168.0.194:9000/asr` | Transcription response |
-| **Ollama LLM** | `curl 192.168.0.191:11434/api/generate` | Llama 3 generation |
-| **Dragonfly** | `kubectl exec -it dragonfly redis-cli` | Persistence of jobs |
+### 3.4 Diffusion Engine (Stylizer)
+- **Path**: `/style`
+- **Method**: POST
+- **Input**:
+```json
+{
+  "image_url": "https://minio.zacharie.org/keryx/raw/frame_0001.jpg",
+  "prompt": "Cyberpunk glassmorphism style, vibrant neon highlights",
+  "strength": 0.5
+}
+```
+- **Expectation**: `200 OK` with `url` of the stylized image. Verify visually in MinIO.
 
 ## 4. UI / UX Audit (Aesthetics & Interaction)
 Verified using modern browser standards.
@@ -45,6 +49,7 @@ Verified using modern browser standards.
 - [ ] **Responsive Design**: Test on mobile vs desktop (grid layout).
 - [ ] **Cyberpunk Effects**: Verify scanlines and flickering on the logo.
 - [ ] **Error Handling**: Disconnect the network and verify "NETWORK_BRIDGE_COLLAPSE" message.
+- [ ] **Styling Preview**: Verify the "Style" button correctly triggers the diffusion engine.
 
 ## 5. CI/CD Validation
 GitHub Actions pipeline tracking.

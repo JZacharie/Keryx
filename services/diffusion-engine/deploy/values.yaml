@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/jzacharie/keryx-diffusion-engine
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+resources:
+  limits:
+    nvidia.com/gpu: 1
+    memory: 12Gi
+    cpu: 4000m
+  requests:
+    nvidia.com/gpu: 1
+    memory: 12Gi
+    cpu: 4000m
+
+nodeSelector:
+  kubernetes.io/hostname: vm169
+
+env:
+  S3_ENDPOINT: "https://minio-170-api.zacharie.org"
+  S3_BUCKET: "keryx"
+  MODEL_ID: "stabilityai/sdxl-turbo"
+
+secret:
+  existingSecret: keryx-secrets # pragma: allowlist secret

@@ -16,6 +16,7 @@ use keryx_ingestor::{
         ffmpeg_analyzer::FfmpegAnalyzer,
         whisper_stt_repository::WhisperSTTRepository,
         ollama_translator_repository::OllamaTranslatorRepository,
+        diffusion_stylizer_repository::DiffusionStylizerRepository,
     },
 };
 use std::path::PathBuf;
@@ -29,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx".to_string());
     let s3_region = std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
     let s3_endpoint = std::env::var("S3_ENDPOINT").ok();
+    let diffusion_url = std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://diffusion-engine.keryx.svc.cluster.local".to_string());
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)?;
 
@@ -39,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
     let analyzer = Arc::new(FfmpegAnalyzer::new(temp_dir.clone()));
     let stt_repo = Arc::new(WhisperSTTRepository::new("http://192.168.0.194:9000"));
     let translator = Arc::new(OllamaTranslatorRepository::new("http://192.168.0.191:11434", "llama3"));
+    let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -48,6 +51,7 @@ async fn main() -> anyhow::Result<()> {
         analyzer,
         stt_repo,
         translator,
+        stylizer,
     ));
 
     // Initialize state
