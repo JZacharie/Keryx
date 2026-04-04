@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use uuid::Uuid;
-use anyhow::{Result, Context};
+use anyhow::Result;
 use crate::domain::ports::job_repository::JobRepository;
 use crate::domain::ports::storage_repository::StorageRepository;
 use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
 use crate::domain::ports::stt_repository::STTRepository;
 use crate::domain::ports::translator_repository::TranslatorRepository;
-use crate::domain::entities::job::{Job, JobStatus, SlideAsset, TranslationAsset};
+use crate::domain::entities::job::{JobStatus, SlideAsset, TranslationAsset};
 
 pub struct IngestVideoUseCase {
     job_repo: Arc<dyn JobRepository>,
@@ -54,7 +54,7 @@ impl IngestVideoUseCase {
         for (index, timestamp, frame_path) in slides {
             let frame_remote = format!("jobs/{}/raw/frame_{}.png", job_id, index);
             let frame_url = self.storage_repo.upload_file(&frame_path, &frame_remote).await?;
-            
+
             slide_assets.push(SlideAsset {
                 slide_index: index,
                 original_frame: frame_url,
@@ -69,7 +69,7 @@ impl IngestVideoUseCase {
 
         // 5. Transcribe
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
-        
+
         // Match transcription segments to slides
         let slide_offsets: Vec<(f64, Option<f64>)> = job.assets_map.iter().enumerate().map(|(i, s)| {
             let next = job.assets_map.get(i+1).map(|ns| ns.timestamp);
@@ -82,7 +82,7 @@ impl IngestVideoUseCase {
                 .filter(|s| s.start >= start && next_start.map_or(true, |ns| s.end <= ns))
                 .map(|s| s.text.clone())
                 .collect();
-            
+
             let original_text = slide_text.join(" ");
 
             // 6. Translate

@@ -53,7 +53,6 @@ jobs:
 
       - name: Build Rust binary (release)
         run: |
-          cd services/ingestor
           cargo build --release --bin keryx-ingestor
           ls -lh target/release/keryx-ingestor
 
@@ -61,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: keryx-ingestor-binary
-          path: services/ingestor/target/release/keryx-ingestor
+          path: target/release/keryx-ingestor
           retention-days: 1
 
   # ============================================================================

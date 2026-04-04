@@ -19,14 +19,14 @@ impl RedisJobRepository {
 #[async_trait]
 impl JobRepository for RedisJobRepository {
     async fn save(&self, job: &Job) -> Result<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let json = serde_json::to_string(job)?;
         let _: () = conn.set(job.id.to_string(), json).await?;
         Ok(())
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Job>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let json: Option<String> = conn.get(id.to_string()).await?;
         match json {
             Some(s) => Ok(Some(serde_json::from_str(&s)?)),

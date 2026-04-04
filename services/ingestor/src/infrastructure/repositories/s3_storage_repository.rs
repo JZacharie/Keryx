@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use anyhow::{Result, Context};
+use anyhow::Result;
 use crate::domain::ports::storage_repository::StorageRepository;
 use aws_sdk_s3::{Client, primitives::ByteStream};
 use std::path::Path;
@@ -31,7 +31,7 @@ impl StorageRepository for S3StorageRepository {
             .body(body)
             .send()
             .await?;
-        
+
         Ok(format!("s3://{}/{}", self.bucket, remote_path))
     }
 
