@@ -12,13 +12,23 @@ service:
 
 resources:
   limits:
-    nvidia.com/gpu: 1
     memory: 12Gi
     cpu: 4000m
   requests:
-    nvidia.com/gpu: 1
     memory: 12Gi
     cpu: 4000m
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
 
 nodeSelector:
   kubernetes.io/hostname: vm169
