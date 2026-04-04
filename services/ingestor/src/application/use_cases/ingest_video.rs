@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use uuid::Uuid;
-use anyhow::{Result, Context};
+use anyhow::Result;
 use crate::domain::ports::job_repository::JobRepository;
 use crate::domain::ports::storage_repository::StorageRepository;
 use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
