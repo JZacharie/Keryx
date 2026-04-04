@@ -40,16 +40,6 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.existingSecret | default "keryx-secrets" }}
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.existingSecret | default "keryx-secrets" }}
-                  key: AWS_SECRET_ACCESS_KEY
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
