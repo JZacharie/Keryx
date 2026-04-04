@@ -33,6 +33,12 @@ securityContext:
 nodeSelector:
   kubernetes.io/hostname: vm169
 
+tolerations:
+  - key: "special-node"
+    operator: "Equal"
+    value: "gpu"
+    effect: "NoSchedule"
+
 env:
   S3_ENDPOINT: "https://minio-170-api.zacharie.org"
   S3_BUCKET: "keryx"

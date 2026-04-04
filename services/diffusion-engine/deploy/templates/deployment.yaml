@@ -57,6 +57,10 @@ spec:
               mountPath: /app/huggingface
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: hf-cache
           emptyDir: {}
