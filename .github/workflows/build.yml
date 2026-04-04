@@ -115,3 +115,43 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+
+  # ============================================================================
+  # Phase 4: Continuous Deployment (CD)
+  # ============================================================================
+  deploy:
+    name: 🚀 Deploy to Cluster
+    needs: [build-docker]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_JO3 }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: ArgoCD Sync
+        run: |
+          # Patch ArgoCD Application to trigger a hard refresh/sync
+          kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
+
+      - name: Rollout deployment
+        run: |
+          kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
+          kubectl rollout status deployment keryx-keryx-ingestor -n keryx
+
+      - name: Notify Slack
+        if: success()
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"text\": \"✅ *Keryx Deployed to Cluster*\n\n🚀 Version: \`${{ github.sha }}\`\n🌐 URL: https://keryx.p.zacharie.org\n📝 Commit: ${COMMIT_MSG}\"
+            }" \
+            $SLACK_WEBHOOK
