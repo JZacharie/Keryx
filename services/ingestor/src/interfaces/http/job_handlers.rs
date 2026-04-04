@@ -40,6 +40,7 @@ pub async fn create_job_handler(
 
     // Save job
     if let Err(e) = state.ingest_video_use_case.get_job_repo().save(&job).await {
+        tracing::error!("Failed to save job to Redis: {}", e);
         return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response();
     }
 
