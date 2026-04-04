@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::Stdio;
+use tokio::process::Command;
+use tokio::io::{BufReader, AsyncBufReadExt};
 use crate::domain::ports::video_repository::VideoAnalyzer;
 
 pub struct FfmpegAnalyzer {
@@ -19,8 +21,8 @@ impl VideoAnalyzer for FfmpegAnalyzer {
     async fn detect_slides(&self, video_path: &PathBuf) -> Result<Vec<(u32, f64, PathBuf)>> {
         let output_pattern = self.output_dir.join("frame_%04d.jpg");
 
-        // ffmpeg -i video.mp4 -vf "select='gt(scene,0.05)',showinfo" -vsync vfr -q:v 2 out%04d.jpg
-        let output = Command::new("ffmpeg")
+        // Use tokio::process::Command for non-blocking and streamed output
+        let mut child = Command::new("ffmpeg")
             .arg("-i")
             .arg(video_path)
             .arg("-vf")
@@ -31,34 +33,47 @@ impl VideoAnalyzer for FfmpegAnalyzer {
             .arg("2")
             .arg("-y")
             .arg(&output_pattern)
-            .output()?; // We capture output to get stderr
+            .stderr(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn()
+            .map_err(|e| anyhow!("Failed to spawn ffmpeg: {}", e))?;
 
-        if !output.status.success() {
-            return Err(anyhow!("ffmpeg scene detection failed"));
-        }
+        let stderr = child.stderr.take().ok_or_else(|| anyhow!("Failed to capture ffmpeg stderr"))?;
+        let mut reader = BufReader::new(stderr).lines();
 
-        let stderr = String::from_utf8_lossy(&output.stderr);
         let mut slides = Vec::new();
         let mut frame_count = 1;
 
-        for line in stderr.lines() {
+        while let Some(line) = reader.next_line().await? {
             if line.contains("showinfo") && line.contains("pts_time") {
-                // Parse pts_time:xxxx from the line
                 if let Some(pts_idx) = line.find("pts_time:") {
                     let part = &line[pts_idx + 9..];
                     if let Some(space_idx) = part.find(' ') {
                         if let Ok(ts) = part[..space_idx].parse::<f64>() {
-                            let frame_path = self.output_dir.join(format!("frame_{:04}.jpg", frame_count));
-                            if frame_path.exists() {
-                                slides.push((frame_count as u32, ts, frame_path));
-                                frame_count += 1;
-                            }
+                            let frame_name = format!("frame_{:04}.jpg", frame_count);
+                            let frame_path = self.output_dir.join(&frame_name);
+                            // We don't check existence yet as ffmpeg might be writing it
+                            slides.push((frame_count as u32, ts, frame_path));
+                            frame_count += 1;
                         }
                     }
                 }
             }
         }
 
-        Ok(slides)
+        let status = child.wait().await?;
+        if !status.success() {
+            return Err(anyhow!("ffmpeg scene detection failed with code {}", status.code().unwrap_or(-1)));
+        }
+
+        // Final check: confirm files actually exist on disk
+        let mut final_slides = Vec::new();
+        for (idx, ts, path) in slides {
+            if path.exists() {
+                final_slides.push((idx, ts, path));
+            }
+        }
+
+        Ok(final_slides)
     }
 }

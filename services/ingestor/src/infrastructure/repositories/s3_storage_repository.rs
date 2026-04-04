@@ -7,12 +7,15 @@ use std::path::Path;
 pub struct S3StorageRepository {
     client: Client,
     bucket: String,
+    endpoint: String,
 }
 
 impl S3StorageRepository {
     pub async fn new(region: &str, bucket: &str, endpoint: Option<&str>) -> Self {
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.to_string()));
+
+        let ep_str = endpoint.unwrap_or("https://s3.amazonaws.com").to_string();
 
         if let Some(ep) = endpoint {
             config_loader = config_loader.endpoint_url(ep);
@@ -23,7 +26,7 @@ impl S3StorageRepository {
             .force_path_style(true)
             .build();
         let client = Client::from_conf(s3_config);
-        Self { client, bucket: bucket.to_string() }
+        Self { client, bucket: bucket.to_string(), endpoint: ep_str }
     }
 }
 
@@ -38,7 +41,13 @@ impl StorageRepository for S3StorageRepository {
             .send()
             .await?;
 
-        Ok(format!("s3://{}/{}", self.bucket, remote_path))
+        // Return a reachable HTTP URL
+        let url = if self.endpoint.ends_with('/') {
+            format!("{}{}/{}", self.endpoint, self.bucket, remote_path)
+        } else {
+            format!("{}/{}/{}", self.endpoint, self.bucket, remote_path)
+        };
+        Ok(url)
     }
 
     async fn get_presigned_url(&self, _remote_path: &str) -> Result<String> {

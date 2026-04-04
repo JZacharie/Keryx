@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
-use std::process::Command;
+use tokio::process::Command;
+use uuid::Uuid;
 use crate::domain::ports::video_repository::VideoDownloader;
 
 pub struct YtDlpRepository {
@@ -21,7 +22,7 @@ impl VideoDownloader for YtDlpRepository {
         let video_path = self.download_dir.join(format!("{}.mp4", video_id));
         let audio_path = self.download_dir.join(format!("{}.wav", video_id));
 
-        // 1. Download video + audio (no subs first to avoid fatal errors if subs 429)
+        // 1. Download video + audio
         let status = Command::new("yt-dlp")
             .arg("-v")
             .arg("-f")
@@ -38,13 +39,14 @@ impl VideoDownloader for YtDlpRepository {
             .arg("-o")
             .arg(&video_path)
             .arg(url)
-            .status()?;
+            .status()
+            .await?;
 
         if !status.success() {
             return Err(anyhow!("yt-dlp video download failed with status: {}", status));
         }
 
-        // 2. Try to download subtitles (optional, won't fail the job)
+        // 2. Try to download subtitles
         let _ = Command::new("yt-dlp")
             .arg("--write-subs")
             .arg("--write-auto-subs")
@@ -57,13 +59,13 @@ impl VideoDownloader for YtDlpRepository {
             .arg("-o")
             .arg(self.download_dir.join(format!("{}.%(ext)s", video_id)))
             .arg(url)
-            .status();
+            .status()
+            .await;
 
         // Check for subtitle file
         let mut sub_path = None;
-        let entries = std::fs::read_dir(&self.download_dir)?;
-        for entry in entries {
-            let entry = entry?;
+        let mut entries = tokio::fs::read_dir(&self.download_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name().into_string().unwrap_or_default();
             if name.starts_with(&video_id) && name.ends_with(".vtt") {
                 sub_path = Some(entry.path());
@@ -84,7 +86,8 @@ impl VideoDownloader for YtDlpRepository {
             .arg("1")
             .arg("-y")
             .arg(&audio_path)
-            .status()?;
+            .status()
+            .await?;
 
         if !status.success() {
             return Err(anyhow!("ffmpeg audio extraction failed with status: {}", status));
@@ -93,5 +96,3 @@ impl VideoDownloader for YtDlpRepository {
         Ok((video_path, audio_path, sub_path))
     }
 }
-
-use uuid::Uuid;
