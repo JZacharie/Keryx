@@ -23,14 +23,18 @@ impl VideoDownloader for YtDlpRepository {
 
         // Download video + audio
         let status = Command::new("yt-dlp")
+            .arg("-v")
             .arg("-f")
             .arg("bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best")
             .arg("--merge-output-format")
             .arg("mp4")
             .arg("--external-downloader")
             .arg("aria2c")
+            .arg("--js-runtimes")
+            .arg("node")
             .arg("--no-playlist")
             .arg("--no-check-certificates")
+            .arg("--geo-bypass")
             .arg("-o")
             .arg(&video_path)
             .arg(url)
