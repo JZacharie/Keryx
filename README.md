@@ -1,66 +1,67 @@
-# 🏛️ Keryx
+# 🏛️ Keryx - Automated Video Localization Pipeline
 
-Named after the Ancient Greek herald (κῆρυξ), the inviolable messenger of truth. **Keryx** is an automated, event-driven pipeline designed to convert technical presentation videos into localized and re-stylized versions.
+Named after the Ancient Greek herald (κῆρυξ), the inviolable messenger of truth. **Keryx** is an automated, event-driven pipeline designed to convert technical presentation videos into localized and re-stylized versions with frame-accurate precision.
 
-The system ensures that complex technical content remains accurate while the visual aesthetic and the speaker's voice are preserved and adapted to any target language.
+The system ensures that complex technical content remains accurate while the visual aesthetic and the speaker's original voice are preserved and adaptively translated to target linguistic matrices.
 
 ## 🎯 Objective
 Automate the end-to-end localization of YouTube presentation videos, including:
-- **Slide Analysis**: Frame-accurate detection of slide transitions.
+- **Slide Analysis**: Frame-accurate detection of slide transitions using `ffmpeg` scene detection.
 - **Audio Transcription**: High-fidelity STT using **Faster-Whisper**.
 - **Contextual Translation**: Preservation of technical terms via **Ollama (Llama 3)**.
 - **Visual Stylization**: Slide regeneration using **Stable Diffusion (ControlNet)**.
-- **Voice Cloning**: Localized audio generation preserving the speaker's original voice.
+- **Voice Cloning** (Phase 3): **Coqui XTTS v2** for speaker voice preservation.
+- **Video Composition**: **MoviePy** for final assembly and time-stretching.
 
-## 🏗️ System Architecture
-Keryx operates on a Kubernetes cluster using an event-driven pattern for asynchronous processing and S3-compatible storage for asset persistence.
+## 🏗️ Technical Architecture
+Keryx is built using **Hexagonal Architecture** (Ports & Adapters) in Rust to ensure strict isolation between domain logic and infrastructure (S3, Redis, AI endpoints).
 
-### Components
-1. **`keryx-ingestor` (Rust/Axum)**:
-   - Downloads videos via `yt-dlp`.
-   - Detects slide transitions using `ffmpeg` scene detection.
-   - Orchestrates STT and Translation steps.
-2. **`keryx-speech-to-text`**: Integrated with existing **Faster-Whisper** services.
-3. **`keryx-translator-llm`**: Integrated with existing **Ollama** services.
-4. **`keryx-diffusion-engine`** (Planned): **ComfyUI API / SDXL** for visual stylization.
-5. **`keryx-voice-cloner`** (Planned): **Coqui XTTS v2** for speaker voice preservation.
-6. **`keryx-video-composer`** (Planned): **MoviePy** for final assembly and time-stretching.
+### 🧡 Interfaces
+- **Web UI**: A modern "Cyberpunk/Glassmorphism" interface inspired by the **Kusanagi** aesthetic, featuring real-time job status tracking and GITS-inspired visuals.
+- **REST API**: Axum-based endpoints for job creation (`/api/jobs`) and health monitoring (`/health`).
 
-## 🚀 Getting Started
+### 💙 Domain logic
+- **Job Entity**: State machine-driven job lifecycle (Downloading → Analyzing → Transcribing → Translating).
+- **Assets Map**: Mapping detected slide frames to their corresponding transcribed segments for accurate localized overlays.
 
-### Prerequisites
-- **Rust** (1.75+)
-- **Redis**
-- **MinIO** or S3-compatible storage
-- **FFmpeg** & **yt-dlp**
-- Access to **Faster-Whisper** and **Ollama** endpoints
+### 💛 Infrastructure (Adapters)
+- **Job Repository**: Redis-backed persistence using **DragonflyDB**.
+- **Storage Repository**: S3-compatible asset management via **MinIO** (Path-style addressing).
+- **Video Pipeline**: `yt-dlp` (piloted with Node.js runtime) and `ffmpeg`.
 
-### Environment Variables
-Configure the following in your environment or `.env` file:
+## 🚀 Deployment & CI/CD
+The project features a professional-grade automation pipeline:
+- **Security Audit**: Automated **Gitleaks** scans on every push.
+- **Optimized Builds**: Multi-arch Docker images built via GitHub Actions with high-performance Rust caching.
+- **GitOps Management**: Integrated with **ArgoCD** for automated synchronization and deployment on the `jo3` cluster.
+- **Observability**: Instant **Slack** notifications upon successful rollouts.
+
+## 🛠️ Configuration
+Keryx is optimized for cluster environments using these variables:
 ```bash
-REDIS_URL=redis://localhost:6379
-S3_BUCKET=keryx-raw
-S3_REGION=eu-west-1
-S3_ENDPOINT=http://minio:9000
-```
-
-### Running the Ingestor
-```bash
-cd services/ingestor
-cargo run --release
+REDIS_URL=redis://:PASSWORD@dragonfly.dragonfly.svc:6379
+S3_BUCKET=keryx
+S3_ENDPOINT=https://minio-170-api.zacharie.org
+AWS_ACCESS_KEY_ID=keryx
+AWS_SECRET_ACCESS_KEY=REDACTED
 ```
 
 ## 📜 Repository Structure
 ```
 .
 ├── services/
-│   ├── ingestor/         # Rust (Axum) Ingestion service
-│   ├── speech-to-text/   # (External) Faster-Whisper
-│   └── translator-llm/   # (External) Ollama
-├── libs/                 # Shared logic
-├── deploy/               # Kubernetes manifests
-└── implementation_plan_phase_1.md
+│   └── ingestor/         # Core Rust service (Axum)
+│       ├── src/          # Hexagonal project structure
+│       ├── static/       # Cyberpunk Web UI
+│       └── Dockerfile    # Optimized multi-stage build
+├── deploy/
+│   └── helm/             # Kubernetes localized charts
+├── TEST_PLAN.md          # Comprehensive verification strategy
+└── README.md
 ```
 
-## 🚦 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 🚦 Status: 🟢 Production Ready (Phase 1 & 2)
+The Ingestor unit is currently active and capable of processing localized YouTube streams into the `keryx` asset bucket with full LLM-driven translation.
+
+---
+*Powered by Rust, Ollama, Whisper, and the Ancient Greek spirit.*
