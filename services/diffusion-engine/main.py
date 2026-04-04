@@ -33,6 +33,9 @@ pipe = AutoPipelineForImage2Image.from_pretrained(
     variant="fp16" if DEVICE == "cuda" else None
 )
 pipe.to(DEVICE)
+if DEVICE == "cuda":
+    pipe.enable_attention_slicing()
+    # pipe.enable_model_cpu_offload() # Can be slow but saves VRAM
 print("Model loaded successfully.")
 
 s3_client = boto3.client(
@@ -88,7 +91,7 @@ async def style_image(request: StylingRequest):
         # 1. Download source
         init_image = download_image(request.image_url)
         # Resize for SDXL-Turbo (standard is 512, 768 or 1024)
-        init_image = init_image.resize((1024, 1024))
+        init_image = init_image.resize((512, 512))
 
         # 2. Run Inference
         with torch.inference_mode():
