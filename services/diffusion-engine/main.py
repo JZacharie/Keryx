@@ -32,10 +32,11 @@ pipe = AutoPipelineForImage2Image.from_pretrained(
     torch_dtype=torch_dtype,
     variant="fp16" if DEVICE == "cuda" else None
 )
-pipe.to(DEVICE)
 if DEVICE == "cuda":
     pipe.enable_attention_slicing()
-    pipe.enable_model_cpu_offload() # This is the most memory-efficient way
+    pipe.enable_model_cpu_offload() # Handles moving to GPU automatically
+else:
+    pipe.to(DEVICE)
 print("Model loaded successfully.")
 
 s3_client = boto3.client(
