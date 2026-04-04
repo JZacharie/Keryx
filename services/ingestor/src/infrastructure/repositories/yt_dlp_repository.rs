@@ -21,7 +21,7 @@ impl VideoDownloader for YtDlpRepository {
         let video_path = self.download_dir.join(format!("{}.mp4", video_id));
         let audio_path = self.download_dir.join(format!("{}.wav", video_id));
 
-        // Download video + audio + subtitles
+        // 1. Download video + audio (no subs first to avoid fatal errors if subs 429)
         let status = Command::new("yt-dlp")
             .arg("-v")
             .arg("-f")
@@ -32,10 +32,6 @@ impl VideoDownloader for YtDlpRepository {
             .arg("aria2c")
             .arg("--js-runtimes")
             .arg("node")
-            .arg("--write-subs")
-            .arg("--write-auto-subs")
-            .arg("--sub-format")
-            .arg("vtt")
             .arg("--no-playlist")
             .arg("--no-check-certificates")
             .arg("--geo-bypass")
@@ -44,10 +40,24 @@ impl VideoDownloader for YtDlpRepository {
             .arg(url)
             .status()?;
 
-        // If it fails but the video file was created, we proceed (subtitles might have failed)
-        if !status.success() && !video_path.exists() {
-            return Err(anyhow!("yt-dlp failed with status: {} and no video file was created", status));
+        if !status.success() {
+            return Err(anyhow!("yt-dlp video download failed with status: {}", status));
         }
+
+        // 2. Try to download subtitles (optional, won't fail the job)
+        let _ = Command::new("yt-dlp")
+            .arg("--write-subs")
+            .arg("--write-auto-subs")
+            .arg("--sub-format")
+            .arg("vtt")
+            .arg("--skip-download")
+            .arg("--no-playlist")
+            .arg("--no-check-certificates")
+            .arg("--geo-bypass")
+            .arg("-o")
+            .arg(self.download_dir.join(format!("{}.%(ext)s", video_id)))
+            .arg(url)
+            .status();
 
         // Check for subtitle file
         let mut sub_path = None;
