@@ -57,10 +57,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Build routes
     let app = Router::new()
-        .nest_service("/", tower_http::services::ServeDir::new("static").fallback(tower_http::services::ServeFile::new("static/index.html")))
         .route("/health", get(|| async { "OK" }))
         .route("/api/jobs", post(create_job_handler))
         .route("/api/jobs/:id", get(get_job_handler))
+        .fallback_service(tower_http::services::ServeDir::new("static").fallback(tower_http::services::ServeFile::new("static/index.html")))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
