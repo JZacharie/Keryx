@@ -14,6 +14,8 @@ use keryx_ingestor::{
         s3_storage_repository::S3StorageRepository,
         yt_dlp_repository::YtDlpRepository,
         ffmpeg_analyzer::FfmpegAnalyzer,
+        whisper_stt_repository::WhisperSTTRepository,
+        ollama_translator_repository::OllamaTranslatorRepository,
     },
 };
 use std::path::PathBuf;
@@ -34,6 +36,8 @@ async fn main() -> anyhow::Result<()> {
     let storage_repo = Arc::new(S3StorageRepository::new(&s3_region, &s3_bucket, None).await);
     let downloader = Arc::new(YtDlpRepository::new(temp_dir.clone()));
     let analyzer = Arc::new(FfmpegAnalyzer::new(temp_dir.clone()));
+    let stt_repo = Arc::new(WhisperSTTRepository::new("http://192.168.0.194:9000"));
+    let translator = Arc::new(OllamaTranslatorRepository::new("http://192.168.0.191:11434", "llama3"));
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -41,6 +45,8 @@ async fn main() -> anyhow::Result<()> {
         storage_repo,
         downloader,
         analyzer,
+        stt_repo,
+        translator,
     ));
 
     // Initialize state

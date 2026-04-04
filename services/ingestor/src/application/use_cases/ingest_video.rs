@@ -4,13 +4,17 @@ use anyhow::{Result, Context};
 use crate::domain::ports::job_repository::JobRepository;
 use crate::domain::ports::storage_repository::StorageRepository;
 use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
-use crate::domain::entities::job::{Job, JobStatus, SlideAsset};
+use crate::domain::ports::stt_repository::STTRepository;
+use crate::domain::ports::translator_repository::TranslatorRepository;
+use crate::domain::entities::job::{Job, JobStatus, SlideAsset, TranslationAsset};
 
 pub struct IngestVideoUseCase {
     job_repo: Arc<dyn JobRepository>,
     storage_repo: Arc<dyn StorageRepository>,
     downloader: Arc<dyn VideoDownloader>,
     analyzer: Arc<dyn VideoAnalyzer>,
+    stt_repo: Arc<dyn STTRepository>,
+    translator: Arc<dyn TranslatorRepository>,
 }
 
 impl IngestVideoUseCase {
@@ -19,8 +23,10 @@ impl IngestVideoUseCase {
         storage_repo: Arc<dyn StorageRepository>,
         downloader: Arc<dyn VideoDownloader>,
         analyzer: Arc<dyn VideoAnalyzer>,
+        stt_repo: Arc<dyn STTRepository>,
+        translator: Arc<dyn TranslatorRepository>,
     ) -> Self {
-        Self { job_repo, storage_repo, downloader, analyzer }
+        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator }
     }
 
     pub fn get_job_repo(&self) -> Arc<dyn JobRepository> {
@@ -59,6 +65,39 @@ impl IngestVideoUseCase {
 
         job.assets_map = slide_assets;
         job.status = JobStatus::Transcribing;
+        self.job_repo.save(&job).await?;
+
+        // 5. Transcribe
+        let transcription = self.stt_repo.transcribe(&audio_path).await?;
+        
+        // Match transcription segments to slides
+        let slide_offsets: Vec<(f64, Option<f64>)> = job.assets_map.iter().enumerate().map(|(i, s)| {
+            let next = job.assets_map.get(i+1).map(|ns| ns.timestamp);
+            (s.timestamp, next)
+        }).collect();
+
+        for (i, slide) in job.assets_map.iter_mut().enumerate() {
+            let (start, next_start) = slide_offsets[i];
+            let slide_text: Vec<String> = transcription.segments.iter()
+                .filter(|s| s.start >= start && next_start.map_or(true, |ns| s.end <= ns))
+                .map(|s| s.text.clone())
+                .collect();
+            
+            let original_text = slide_text.join(" ");
+
+            // 6. Translate
+            for lang in &job.target_langs {
+                let translated = self.translator.translate(&original_text, lang).await?;
+                slide.translations.insert(lang.clone(), TranslationAsset {
+                    text: translated,
+                    styled_image: None,
+                    audio: None,
+                    duration: 0.0,
+                });
+            }
+        }
+
+        job.status = JobStatus::GeneratingVisuals;
         self.job_repo.save(&job).await?;
 
         Ok(())
