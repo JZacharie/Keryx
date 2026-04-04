@@ -40,11 +40,15 @@ impl IngestVideoUseCase {
         let mut job = self.job_repo.find_by_id(job_id).await?
             .context("Job not found")?;
 
+        tracing::info!("[Job {}] Starting ingestion for {}", job_id, job.source_url);
+
         // 1. Download
+        tracing::info!("[Job {}] Phase 1: Downloading video and audio...", job_id);
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
         let (video_path, audio_path, subtitle_path) = self.downloader.download(&job.source_url).await?;
 
         // 2. Upload raw assets
+        tracing::info!("[Job {}] Phase 2: Uploading raw assets to storage...", job_id);
         let audio_remote = format!("jobs/{}/raw/audio.wav", job_id);
         self.storage_repo.upload_file(&audio_path, &audio_remote).await?;
 
@@ -57,8 +61,10 @@ impl IngestVideoUseCase {
         }
 
         // 3. Analyze
+        tracing::info!("[Job {}] Phase 3: Analyzing video for slide transitions...", job_id);
         self.job_repo.update_status(job_id, JobStatus::Analyzing).await?;
         let slides = self.analyzer.detect_slides(&video_path).await?;
+        tracing::info!("[Job {}] Analysis complete. Detected {} slides.", job_id, slides.len());
 
         // 4. Upload frames and build job asset map
         let mut slide_assets = Vec::new();
@@ -79,7 +85,9 @@ impl IngestVideoUseCase {
         self.job_repo.save(&job).await?;
 
         // 5. Transcribe
+        tracing::info!("[Job {}] Phase 4: Transcribing audio...", job_id);
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
+        tracing::info!("[Job {}] Transcription complete. Generated {} segments.", job_id, transcription.segments.len());
 
         // 6. Generate Sync Metadata
         let sync_metadata = serde_json::json!({
@@ -123,12 +131,16 @@ impl IngestVideoUseCase {
             let original_text = slide_text.join(" ");
 
             // 7. Translate
+            tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, job.assets_map.len());
             for lang in &job.target_langs {
                 let translated = self.translator.translate(&original_text, lang).await?;
+                tracing::debug!("[Job {}] Translated text for lang {}: {}", job_id, lang, translated);
 
                 // 8. Style Image
-                let style_prompt = "Cyberpunk glassmorphism style, vibrant neon highlights, professional presentation, high quality, sharp focus";
+                let style_prompt = &job.style_config.prompt;
+                tracing::info!("[Job {}] Requesting restyle for frame {} (lang: {})", job_id, slide.slide_index, lang);
                 let styled_url = self.stylizer.style_image(&slide.original_frame, style_prompt).await?;
+                tracing::debug!("[Job {}] Styled frame {} available at: {}", job_id, slide.slide_index, styled_url);
 
                 slide.translations.insert(lang.clone(), TranslationAsset {
                     text: translated,
@@ -141,6 +153,7 @@ impl IngestVideoUseCase {
 
         job.status = JobStatus::GeneratingVisuals;
         self.job_repo.save(&job).await?;
+        tracing::info!("[Job {}] Ingestion and stylization complete.", job_id);
 
         Ok(())
     }

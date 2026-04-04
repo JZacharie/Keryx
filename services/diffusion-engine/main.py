@@ -5,6 +5,7 @@ import uuid as uuid_pkg
 import time
 import numpy as np
 import cv2
+import logging
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -17,6 +18,14 @@ from diffusers import (
 from PIL import Image
 import boto3
 from urllib.parse import urlparse
+
+# Configure Verbose Logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("keryx.diffusion")
 
 app = FastAPI(title="Keryx Diffusion Engine")
 
@@ -117,18 +126,26 @@ def get_canny_image(image: Image.Image) -> Image.Image:
 
 @app.post("/style")
 async def style_image(request: StylingRequest):
+    request_id = str(uuid_pkg.uuid4())[:8]
+    logger.info(f"[{request_id}] Received styling request for: {request.image_url}")
+    start_time = time.time()
     try:
         # 1. Download and Prepare
         init_image = download_image(request.image_url)
+        logger.info(f"[{request_id}] Downloaded image. Original size: {init_image.size}")
+
         init_image = init_image.resize((512, 512))
 
         # Extract Canny edges for structural preservation
         control_image = get_canny_image(init_image)
+        logger.info(f"[{request_id}] Generated Canny control map for structural preservation.")
 
         # 2. Refine Prompt with Teamwork Colors
         brand_prompt = f"{request.prompt}. Teamwork brand aesthetic: vibrant pink ({TW_PINK}), deep slate ({TW_SLATE}), and clean white ({TW_WHITE}) highlights. Professional SaaS presentation style, high quality, glassmorphism."
+        logger.info(f"[{request_id}] Using prompt: {brand_prompt}")
 
         # 3. Run Inference
+        logger.info(f"[{request_id}] Starting SDXL Turbo inference (Steps: {request.num_inference_steps}, Strength: {request.strength})...")
         with torch.inference_mode():
             images = pipe(
                 brand_prompt,
@@ -144,6 +161,7 @@ async def style_image(request: StylingRequest):
 
         # Convert to Black and White for validation as requested
         stylized_image = stylized_image.convert("L").convert("RGB")
+        logger.info(f"[{request_id}] Stylization complete. Applied B&W validation filter.")
 
         # 4. Upload result
         if not request.target_path:
@@ -152,7 +170,11 @@ async def style_image(request: StylingRequest):
         else:
             target_key = request.target_path
 
+        logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
         result_url = upload_image(stylized_image, target_key)
+
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
 
         return {
             "status": "success",
@@ -161,7 +183,7 @@ async def style_image(request: StylingRequest):
         }
 
     except Exception as e:
-        print(f"Error during styling: {str(e)}")
+        logger.error(f"[{request_id}] Error during styling: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

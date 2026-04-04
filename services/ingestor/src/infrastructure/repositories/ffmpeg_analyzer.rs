@@ -45,6 +45,7 @@ impl VideoAnalyzer for FfmpegAnalyzer {
         let mut frame_count = 1;
 
         while let Some(line) = reader.next_line().await? {
+            tracing::debug!("[FFmpeg] {}", line);
             if line.contains("showinfo") && line.contains("pts_time") {
                 if let Some(pts_idx) = line.find("pts_time:") {
                     let part = &line[pts_idx + 9..];
