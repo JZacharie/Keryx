@@ -181,10 +181,17 @@ jobs:
 
       - name: Rollout deployment
         run: |
-          kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
-          kubectl rollout restart deployment keryx-diffusion-engine -n keryx
-          kubectl rollout status deployment keryx-keryx-ingestor -n keryx
-          kubectl rollout status deployment keryx-diffusion-engine -n keryx
+          kubectl rollout restart deployment keryx-keryx-ingestor -n keryx || echo "Ingestor not found"
+          kubectl rollout restart deployment keryx-diffusion-engine -n keryx || echo "Diffusion Engine not found"
+
+          # Only wait if they exist
+          if kubectl get deployment keryx-keryx-ingestor -n keryx; then
+            kubectl rollout status deployment keryx-keryx-ingestor -n keryx
+          fi
+
+          if kubectl get deployment keryx-diffusion-engine -n keryx; then
+            kubectl rollout status deployment keryx-diffusion-engine -n keryx
+          fi
 
       - name: Notify Slack
         if: success()
