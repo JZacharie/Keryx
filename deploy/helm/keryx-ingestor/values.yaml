@@ -29,7 +29,7 @@ resources:
     memory: 1Gi
 
 env:
-  REDIS_URL: "redis://kusanagi-redis.kusanagi.svc.cluster.local:6379"
+  REDIS_URL: "redis://dragonfly.dragonfly.svc.cluster.local:6379"
   S3_BUCKET: "keryx-raw"
   S3_REGION: "eu-west-1"
   S3_ENDPOINT: "http://minio:9000"
