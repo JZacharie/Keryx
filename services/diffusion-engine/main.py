@@ -305,66 +305,97 @@ async def clean_video_watermark(request: VideoCleanRequest):
         logger.info(f"[{request_id}] Downloading video to {video_path}...")
         download_video(request.video_url, video_path)
 
-        # 2. Extract Frames using OpenCV
+        # 2. Extract ALL Frames using OpenCV first (Before model setup to save RAM/VRAM)
         cap = cv2.VideoCapture(video_path)
         fps = request.fps_override or cap.get(cv2.CAP_PROP_FPS) or 24
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        logger.info(f"[{request_id}] Video properties: FPS={fps}, Frames={total_frames}")
+        logger.info(f"[{request_id}] Starting frame extraction. Total frames to extract: {total_frames}")
 
-        frames_dir = f"{tmp_dir}/frames"
+        raw_frames_dir = f"{tmp_dir}/raw_frames"
         cleaned_dir = f"{tmp_dir}/cleaned"
-        os.makedirs(frames_dir)
-        os.makedirs(cleaned_dir)
+        os.makedirs(raw_frames_dir, exist_ok=True)
+        os.makedirs(cleaned_dir, exist_ok=True)
 
-        # 3. Setup Inpaint Pipeline once
+        frame_count = 0
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame_count += 1
+            frame_filename = f"{raw_frames_dir}/frame_{frame_count:04d}.jpg"
+            cv2.imwrite(frame_filename, frame)
+            if frame_count % 50 == 0:
+                logger.info(f"[{request_id}] Extracted {frame_count} frames...")
+
+        cap.release()
+        logger.info(f"[{request_id}] Extraction complete. Total frames saved: {frame_count}")
+
+        if frame_count == 0:
+            raise Exception("Extraction failed: 0 frames recovered from video source.")
+
+        # 3. STAGE 2: Upload ALL Raw Frames to S3 (Persist raw data before processing)
+        logger.info(f"[{request_id}] Uploading {frame_count} raw frames to S3 (raw_frames/{request_id}/)...")
+        for i in range(1, frame_count + 1):
+            filename = f"frame_{i:04d}.jpg"
+            local_path = f"{raw_frames_dir}/{filename}"
+            s3_key = f"raw_frames/{request_id}/{filename}"
+            s3_client.upload_file(local_path, S3_BUCKET, s3_key)
+            if i % 100 == 0:
+                logger.debug(f"[{request_id}] Uploaded {i}/{frame_count} raw frames...")
+        logger.info(f"[{request_id}] All raw frames successfully pushed to S3.")
+
+        # 4. Setup Inpaint Pipeline (After extraction and upload are confirmed)
+        logger.info(f"[{request_id}] Phase 3: Initializing SDXL Inpaint pipeline...")
         inpaint_pipe = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
         if DEVICE == "cuda":
             inpaint_pipe.enable_model_cpu_offload()
         else:
             inpaint_pipe.to(DEVICE)
+        logger.info(f"[{request_id}] Pipeline ready. Starting watermark removal by pulling frames from S3...")
 
-        # 4. Process each frame
-        frame_idx = 0
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+        # 5. Process each frame (Downloading back from S3 as requested)
+        from PIL import ImageDraw, ImageFilter
+        for i in range(1, frame_count + 1):
+            filename = f"frame_{i:04d}.jpg"
+            s3_key = f"raw_frames/{request_id}/{filename}"
+            local_raw_path = f"{tmp_dir}/s3_downloaded_{filename}"
 
-            frame_idx += 1
-            if frame_idx % 10 == 0 or frame_idx == 1:
-                logger.debug(f"[{request_id}] Processing frame {frame_idx}/{total_frames}...")
+            # Pull from S3
+            s3_client.download_file(S3_BUCKET, s3_key, local_raw_path)
 
-            # Convert OpenCV frame (BGR) to PIL Image (RGB)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            init_image = Image.fromarray(frame_rgb)
+            if i % 10 == 0 or i == 1:
+                logger.info(f"[{request_id}] Processing frame {i}/{frame_count} (Downloaded from S3)...")
+
+            # Load frame and prepare
+            init_image = Image.open(local_raw_path).convert("RGB")
             w, h = init_image.size
 
-            # Create Mask (reuse NotebookLM logic)
+            # Create Mask
             mask = Image.new("L", (w, h), 0)
-            from PIL import ImageDraw, ImageFilter
             draw = ImageDraw.Draw(mask)
             draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
             mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
 
             # Inpaint
             with torch.inference_mode():
-                # For videos, we use fewer steps for speed if possible
                 result = inpaint_pipe(
                     prompt="matching background texture, seamless, clean, white background",
                     negative_prompt="text, logo, blurry, distorted, watermark",
                     image=init_image,
                     mask_image=mask,
-                    num_inference_steps=15, # Optimized for video batches
+                    num_inference_steps=15,
                     strength=1.0
                 ).images[0]
 
             # Save cleaned frame
-            frame_filename = f"{cleaned_dir}/frame_{frame_idx:04d}.jpg"
-            result.save(frame_filename, quality=90)
+            frame_output_filename = f"{cleaned_dir}/frame_{i:04d}.jpg"
+            result.save(frame_output_filename, quality=90)
 
-        cap.release()
+            # Cleanup downloaded raw frame to save disk
+            if os.path.exists(local_raw_path):
+                os.remove(local_raw_path)
 
-        # 5. Assemble Video using FFmpeg
+        # 6. Assemble Video using FFmpeg
         output_video = f"{tmp_dir}/output.mp4"
         logger.info(f"[{request_id}] Re-assembling video with FFmpeg...")
         assemble_cmd = [
@@ -376,14 +407,14 @@ async def clean_video_watermark(request: VideoCleanRequest):
         ]
         subprocess.run(assemble_cmd, check=True, capture_output=True)
 
-        # 6. Upload Result
+        # 7. Upload Final Result
         if not request.target_path:
-            filename = f"video_cleaned_{uuid_pkg.uuid4()}.mp4"
-            target_key = f"cleaned_videos/{filename}"
+            final_filename = f"video_cleaned_{uuid_pkg.uuid4()}.mp4"
+            target_key = f"cleaned_videos/{final_filename}"
         else:
             target_key = request.target_path
 
-        logger.info(f"[{request_id}] Uploading video to S3: {target_key}")
+        logger.info(f"[{request_id}] Uploading final video to S3: {target_key}")
         result_url = upload_video(output_video, target_key)
 
         duration = time.time() - start_time
@@ -392,8 +423,9 @@ async def clean_video_watermark(request: VideoCleanRequest):
         return {
             "status": "success",
             "url": result_url,
-            "frames_processed": frame_idx,
-            "duration": f"{duration:.2f}s"
+            "frames_processed": frame_count,
+            "duration": f"{duration:.2f}s",
+            "raw_frames_s3": f"raw_frames/{request_id}/"
         }
 
     except Exception as e:
