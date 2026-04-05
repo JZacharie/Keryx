@@ -305,33 +305,68 @@ async def clean_video_watermark(request: VideoCleanRequest):
         logger.info(f"[{request_id}] Downloading video to {video_path}...")
         download_video(request.video_url, video_path)
 
-        # 2. Extract ALL Frames using OpenCV first (Before model setup to save RAM/VRAM)
-        cap = cv2.VideoCapture(video_path)
-        fps = request.fps_override or cap.get(cv2.CAP_PROP_FPS) or 24
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        logger.info(f"[{request_id}] Starting frame extraction. Total frames to extract: {total_frames}")
+        if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+            raise Exception(f"Video download failed or file empty: {video_path}")
 
+        # 2. Extract ALL Frames (Phase 1)
+        # Using OpenCV with FFMPEG backend, falling back to FFmpeg CLI if needed for robustness
         raw_frames_dir = f"{tmp_dir}/raw_frames"
         cleaned_dir = f"{tmp_dir}/cleaned"
         os.makedirs(raw_frames_dir, exist_ok=True)
         os.makedirs(cleaned_dir, exist_ok=True)
 
         frame_count = 0
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame_count += 1
-            frame_filename = f"{raw_frames_dir}/frame_{frame_count:04d}.jpg"
-            cv2.imwrite(frame_filename, frame)
-            if frame_count % 50 == 0:
-                logger.info(f"[{request_id}] Extracted {frame_count} frames...")
+        success = False
+        try:
+            logger.info(f"[{request_id}] Attempting extraction via OpenCV (FFMPEG backend)...")
+            cap = cv2.VideoCapture(video_path, cv2.CAP_FFMPEG)
+            if not cap.isOpened():
+                raise Exception("OpenCV VideoCapture could not open the file.")
 
-        cap.release()
-        logger.info(f"[{request_id}] Extraction complete. Total frames saved: {frame_count}")
+            fps = request.fps_override or cap.get(cv2.CAP_PROP_FPS) or 24
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            logger.info(f"[{request_id}] Video properties: FPS={fps}, Total Frames={total_frames}")
+
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_count += 1
+                frame_filename = f"{raw_frames_dir}/frame_{frame_count:04d}.jpg"
+                cv2.imwrite(frame_filename, frame)
+                if frame_count % 10 == 0:
+                    logger.info(f"[{request_id}] OpenCV: Extracted {frame_count}/{total_frames if total_frames > 0 else '?'} frames...")
+
+            cap.release()
+            if frame_count > 0:
+                success = True
+                logger.info(f"[{request_id}] OpenCV extraction successful. Total: {frame_count} frames.")
+
+        except Exception as e:
+            logger.warning(f"[{request_id}] OpenCV extraction issue: {str(e)}. Falling back to FFmpeg CLI.")
+            frame_count = 0
+
+        if not success:
+            logger.info(f"[{request_id}] Running FFmpeg CLI for robust frame extraction...")
+            try:
+                # Use sub-process to call ffmpeg directly (very reliable)
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-q:v", "2",
+                    os.path.join(raw_frames_dir, "frame_%04d.jpg")
+                ], check=True, capture_output=True)
+
+                extracted_files = list(pathlib.Path(raw_frames_dir).glob("*.jpg"))
+                frame_count = len(extracted_files)
+                fps = 24 # Baseline fallback
+                logger.info(f"[{request_id}] FFmpeg CLI extraction successful. Total: {frame_count} frames.")
+                if frame_count > 0:
+                    success = True
+            except Exception as fe:
+                logger.error(f"[{request_id}] Critical Failure: All extraction methods failed. {str(fe)}")
 
         if frame_count == 0:
-            raise Exception("Extraction failed: 0 frames recovered from video source.")
+            raise Exception("Fatal: Failed to recover any frames from video source.")
 
         # 3. STAGE 2: Upload ALL Raw Frames to S3 (Persist raw data before processing)
         logger.info(f"[{request_id}] Uploading {frame_count} raw frames to S3 (raw_frames/{request_id}/)...")
@@ -346,12 +381,20 @@ async def clean_video_watermark(request: VideoCleanRequest):
 
         # 4. Setup Inpaint Pipeline (After extraction and upload are confirmed)
         logger.info(f"[{request_id}] Phase 3: Initializing SDXL Inpaint pipeline...")
-        inpaint_pipe = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
-        if DEVICE == "cuda":
-            inpaint_pipe.enable_model_cpu_offload()
-        else:
-            inpaint_pipe.to(DEVICE)
-        logger.info(f"[{request_id}] Pipeline ready. Starting watermark removal by pulling frames from S3...")
+        # Manually sharing components with explicit float16 to avoid dtype mismatch
+        inpaint_pipe = StableDiffusionXLInpaintPipeline(
+            vae=pipe.vae,
+            text_encoder=pipe.text_encoder,
+            text_encoder_2=pipe.text_encoder_2,
+            tokenizer=pipe.tokenizer,
+            tokenizer_2=pipe.tokenizer_2,
+            unet=pipe.unet,
+            scheduler=pipe.scheduler,
+            force_zeros_for_empty_prompt=True,
+            add_watermarker=False
+        ).to(DEVICE, torch.float16)
+
+        logger.info(f"[{request_id}] Pipeline ready (Dtype: {inpaint_pipe.dtype}, Device: {inpaint_pipe.device}). Starting watermark removal...")
 
         # 5. Process each frame (Downloading back from S3 as requested)
         from PIL import ImageDraw, ImageFilter
