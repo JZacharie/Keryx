@@ -173,10 +173,6 @@ async def style_image(request: StylingRequest):
 
         stylized_image = images[0]
 
-        # Convert to Black and White for validation as requested
-        stylized_image = stylized_image.convert("L").convert("RGB")
-        logger.info(f"[{request_id}] Stylization complete. Applied B&W validation filter.")
-
         # 4. Upload result
         if not request.target_path:
             filename = f"styled_{uuid_pkg.uuid4()}.jpg"
@@ -221,7 +217,9 @@ async def clean_watermark(request: CleanRequest):
         # 3. Setup Inpaint Pipeline
         # On utilise AutoPipeline pour switcher proprement
         from diffusers import AutoPipelineForInpainting
-        inpaint_pipe = AutoPipelineForInpainting.from_pipe(pipe).to(DEVICE)
+        inpaint_pipe = AutoPipelineForInpainting.from_pipe(pipe)
+        if DEVICE != "cuda":
+            inpaint_pipe.to(DEVICE)
 
         # 4. Run Inference
         logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning...")
@@ -289,7 +287,11 @@ async def inpaint_image(request: InpaintRequest):
             scheduler=pipe.scheduler,
             force_zeros_for_empty_prompt=pipe.config.force_zeros_for_empty_prompt,
             add_watermarker=getattr(pipe, "add_watermarker", None)
-        ).to(DEVICE)
+        )
+        if DEVICE != "cuda":
+            inpaint_pipe.to(DEVICE)
+        else:
+            inpaint_pipe.enable_model_cpu_offload()
 
         # 3. Run Inference
         logger.info(f"[{request_id}] Starting SDXL Inpaint inference...")
