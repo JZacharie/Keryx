@@ -6,6 +6,10 @@ import time
 import numpy as np
 import cv2
 import logging
+import subprocess
+import tempfile
+import shutil
+import pathlib
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -14,6 +18,7 @@ from diffusers import (
     ControlNetModel,
     StableDiffusionXLControlNetImg2ImgPipeline,
     StableDiffusionXLControlNetInpaintPipeline,
+    StableDiffusionXLInpaintPipeline,
     AutoPipelineForImage2Image
 )
 from PIL import Image
@@ -118,6 +123,29 @@ def upload_image(image: Image.Image, key: str) -> str:
     )
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
+def download_video(url: str, dest_path: str):
+    parsed = urlparse(url)
+    if any(h in parsed.netloc for h in ["zacharie.org", "minio", "localhost"]):
+        parts = parsed.path.lstrip("/").split("/")
+        bucket = parts[0]
+        key = "/".join(parts[1:])
+        s3_client.download_file(bucket, key, dest_path)
+    else:
+        import requests
+        response = requests.get(url, stream=True)
+        with open(dest_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+def upload_video(path: str, key: str) -> str:
+    s3_client.upload_file(
+        path,
+        S3_BUCKET,
+        key,
+        ExtraArgs={"ContentType": "video/mp4"}
+    )
+    return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
+
 def get_canny_image(image: Image.Image) -> Image.Image:
     image_np = np.array(image)
     image_np = cv2.Canny(image_np, 100, 200)
@@ -137,6 +165,11 @@ class InpaintRequest(BaseModel):
 class CleanRequest(BaseModel):
     image_url: str
     target_path: Optional[str] = None
+
+class VideoCleanRequest(BaseModel):
+    video_url: str
+    target_path: Optional[str] = None
+    fps_override: Optional[float] = None
 
 @app.post("/style")
 async def style_image(request: StylingRequest):
@@ -214,12 +247,13 @@ async def clean_watermark(request: CleanRequest):
         draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
         mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
 
-        # 3. Setup Inpaint Pipeline
-        # On utilise AutoPipeline pour switcher proprement
-        from diffusers import AutoPipelineForInpainting
-        inpaint_pipe = AutoPipelineForInpainting.from_pipe(pipe)
+        # 3. Setup Inpaint Pipeline (Regular SDXL Inpaint, no ControlNet needed for this)
+        # We use from_pipe to share components and save VRAM
+        inpaint_pipe = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
         if DEVICE != "cuda":
             inpaint_pipe.to(DEVICE)
+        else:
+            inpaint_pipe.enable_model_cpu_offload()
 
         # 4. Run Inference
         logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning...")
@@ -257,6 +291,117 @@ async def clean_watermark(request: CleanRequest):
     except Exception as e:
         logger.error(f"[{request_id}] Error during watermark cleaning: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/clean_video_watermark")
+async def clean_video_watermark(request: VideoCleanRequest):
+    request_id = str(uuid_pkg.uuid4())[:8]
+    logger.info(f"[{request_id}] Received video watermark cleaning request for: {request.video_url}")
+    start_time = time.time()
+
+    tmp_dir = tempfile.mkdtemp(prefix=f"keryx_video_{request_id}_")
+    try:
+        # 1. Download Video
+        video_path = f"{tmp_dir}/input.mp4"
+        logger.info(f"[{request_id}] Downloading video to {video_path}...")
+        download_video(request.video_url, video_path)
+
+        # 2. Extract Frames using OpenCV
+        cap = cv2.VideoCapture(video_path)
+        fps = request.fps_override or cap.get(cv2.CAP_PROP_FPS) or 24
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        logger.info(f"[{request_id}] Video properties: FPS={fps}, Frames={total_frames}")
+
+        frames_dir = f"{tmp_dir}/frames"
+        cleaned_dir = f"{tmp_dir}/cleaned"
+        os.makedirs(frames_dir)
+        os.makedirs(cleaned_dir)
+
+        # 3. Setup Inpaint Pipeline once
+        inpaint_pipe = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
+        if DEVICE == "cuda":
+            inpaint_pipe.enable_model_cpu_offload()
+        else:
+            inpaint_pipe.to(DEVICE)
+
+        # 4. Process each frame
+        frame_idx = 0
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame_idx += 1
+            if frame_idx % 10 == 0 or frame_idx == 1:
+                logger.debug(f"[{request_id}] Processing frame {frame_idx}/{total_frames}...")
+
+            # Convert OpenCV frame (BGR) to PIL Image (RGB)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            init_image = Image.fromarray(frame_rgb)
+            w, h = init_image.size
+
+            # Create Mask (reuse NotebookLM logic)
+            mask = Image.new("L", (w, h), 0)
+            from PIL import ImageDraw, ImageFilter
+            draw = ImageDraw.Draw(mask)
+            draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
+
+            # Inpaint
+            with torch.inference_mode():
+                # For videos, we use fewer steps for speed if possible
+                result = inpaint_pipe(
+                    prompt="matching background texture, seamless, clean, white background",
+                    negative_prompt="text, logo, blurry, distorted, watermark",
+                    image=init_image,
+                    mask_image=mask,
+                    num_inference_steps=15, # Optimized for video batches
+                    strength=1.0
+                ).images[0]
+
+            # Save cleaned frame
+            frame_filename = f"{cleaned_dir}/frame_{frame_idx:04d}.jpg"
+            result.save(frame_filename, quality=90)
+
+        cap.release()
+
+        # 5. Assemble Video using FFmpeg
+        output_video = f"{tmp_dir}/output.mp4"
+        logger.info(f"[{request_id}] Re-assembling video with FFmpeg...")
+        assemble_cmd = [
+            "ffmpeg", "-y", "-framerate", str(fps),
+            "-i", f"{cleaned_dir}/frame_%04d.jpg",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-crf", "23", # Good balance of quality/size
+            output_video
+        ]
+        subprocess.run(assemble_cmd, check=True, capture_output=True)
+
+        # 6. Upload Result
+        if not request.target_path:
+            filename = f"video_cleaned_{uuid_pkg.uuid4()}.mp4"
+            target_key = f"cleaned_videos/{filename}"
+        else:
+            target_key = request.target_path
+
+        logger.info(f"[{request_id}] Uploading video to S3: {target_key}")
+        result_url = upload_video(output_video, target_key)
+
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Video cleaning finished in {duration:.2f}s. Result: {result_url}")
+
+        return {
+            "status": "success",
+            "url": result_url,
+            "frames_processed": frame_idx,
+            "duration": f"{duration:.2f}s"
+        }
+
+    except Exception as e:
+        logger.error(f"[{request_id}] Error during video cleaning: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 @app.post("/inpaint")
 async def inpaint_image(request: InpaintRequest):
