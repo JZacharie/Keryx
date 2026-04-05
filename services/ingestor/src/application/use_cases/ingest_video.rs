@@ -66,15 +66,20 @@ impl IngestVideoUseCase {
         let slides = self.analyzer.detect_slides(&video_path).await?;
         tracing::info!("[Job {}] Analysis complete. Detected {} slides.", job_id, slides.len());
 
-        // 4. Upload frames and build job asset map
+        // 4. Upload frames, clean watermarks and build job asset map
+        self.job_repo.update_status(job_id, JobStatus::GeneratingVisuals).await?; // Use GeneratingVisuals status for cleaning too
         let mut slide_assets = Vec::new();
         for (index, timestamp, frame_path) in slides {
             let frame_remote = format!("jobs/{}/raw/frame_{:04}.jpg", job_id, index);
             let frame_url = self.storage_repo.upload_file(&frame_path, &frame_remote).await?;
 
+            tracing::info!("[Job {}] Cleaning watermark for slide {}...", job_id, index);
+            let clean_remote = format!("jobs/{}/cleaned/frame_{:04}.jpg", job_id, index);
+            let cleaned_url = self.stylizer.clean_watermark(&frame_url, &clean_remote).await?;
+
             slide_assets.push(SlideAsset {
                 slide_index: index,
-                original_frame: frame_url,
+                original_frame: cleaned_url, // Use the cleaned frame as the base/original for downstream
                 timestamp,
                 translations: std::collections::HashMap::new(),
             });
@@ -152,9 +157,34 @@ impl IngestVideoUseCase {
             }
         }
 
-        job.status = JobStatus::GeneratingVisuals;
+        // 9. Generate S3 Reconstruction Metadata (ffconcat) for video rebuild
+        tracing::info!("[Job {}] Phase 6: Generating reconstruction metadata...", job_id);
+        let mut concat_content = String::from("ffconcat version 1.0\n");
+        let last_timestamp = slide_offsets.last().map(|(t, _)| *t).unwrap_or(0.0);
+
+        // We'll estimate the end of the last slide using the transcription segments
+        let total_duration = transcription.segments.last().map(|s| s.end).unwrap_or(last_timestamp + 5.0);
+
+        for (i, slide) in job.assets_map.iter().enumerate() {
+            let (start, next_start) = slide_offsets[i];
+            let duration = next_start.unwrap_or(total_duration) - start;
+
+            // Re-format S3 link to be relative if needed, or use full URL
+            // FFmpeg concat expects local or accessible paths.
+            // In a k8s environment, we'll use the S3 URLs or local cache.
+            concat_content.push_str(&format!("file '{}'\n", slide.original_frame));
+            concat_content.push_str(&format!("duration {:.3}\n", duration));
+        }
+
+        let concat_path = video_path.with_file_name(format!("{}_reconstruct.ffconcat", job_id));
+        std::fs::write(&concat_path, concat_content)?;
+
+        let concat_remote = format!("jobs/{}/reconstruct.ffconcat", job_id);
+        self.storage_repo.upload_file(&concat_path, &concat_remote).await?;
+
+        job.status = JobStatus::Completed; // Set to completed if we're done with extraction and cleaning
         self.job_repo.save(&job).await?;
-        tracing::info!("[Job {}] Ingestion and stylization complete.", job_id);
+        tracing::info!("[Job {}] Ingestion and reconstruction metadata complete.", job_id);
 
         Ok(())
     }

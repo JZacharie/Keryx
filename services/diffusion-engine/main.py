@@ -13,6 +13,7 @@ import torch
 from diffusers import (
     ControlNetModel,
     StableDiffusionXLControlNetImg2ImgPipeline,
+    StableDiffusionXLControlNetInpaintPipeline,
     AutoPipelineForImage2Image
 )
 from PIL import Image
@@ -124,6 +125,19 @@ def get_canny_image(image: Image.Image) -> Image.Image:
     image_np = np.concatenate([image_np, image_np, image_np], axis=2)
     return Image.fromarray(image_np)
 
+class InpaintRequest(BaseModel):
+    image_url: str
+    mask_url: str
+    prompt: str
+    strength: float = 0.9
+    controlnet_conditioning_scale: float = 0.5
+    num_inference_steps: int = 30
+    target_path: Optional[str] = None
+
+class CleanRequest(BaseModel):
+    image_url: str
+    target_path: Optional[str] = None
+
 @app.post("/style")
 async def style_image(request: StylingRequest):
     request_id = str(uuid_pkg.uuid4())[:8]
@@ -184,6 +198,136 @@ async def style_image(request: StylingRequest):
 
     except Exception as e:
         logger.error(f"[{request_id}] Error during styling: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/clean_watermark")
+async def clean_watermark(request: CleanRequest):
+    request_id = str(uuid_pkg.uuid4())[:8]
+    logger.info(f"[{request_id}] Received watermark cleaning request for: {request.image_url}")
+    start_time = time.time()
+    try:
+        # 1. Download
+        init_image = download_image(request.image_url)
+        w, h = init_image.size
+
+        # 2. Create NotebookLM Mask (bottom right)
+        mask = Image.new("L", (w, h), 0)
+        from PIL import ImageDraw, ImageFilter
+        draw = ImageDraw.Draw(mask)
+        # NotebookLM zone: [x_start, y_start, x_end, y_end]
+        draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
+
+        # 3. Setup Inpaint Pipeline
+        # On utilise AutoPipeline pour switcher proprement
+        from diffusers import AutoPipelineForInpainting
+        inpaint_pipe = AutoPipelineForInpainting.from_pipe(pipe).to(DEVICE)
+
+        # 4. Run Inference
+        logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning...")
+        with torch.inference_mode():
+            images = inpaint_pipe(
+                prompt="matching background texture, seamless, clean, white background",
+                negative_prompt="text, logo, blurry, distorted, watermark",
+                image=init_image,
+                mask_image=mask,
+                num_inference_steps=20,
+                strength=1.0
+            ).images
+
+        cleaned_image = images[0]
+
+        # 5. Upload result
+        if not request.target_path:
+            filename = f"cleaned_{uuid_pkg.uuid4()}.jpg"
+            target_key = f"cleaned/{filename}"
+        else:
+            target_key = request.target_path
+
+        logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
+        result_url = upload_image(cleaned_image, target_key)
+
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
+
+        return {
+            "status": "success",
+            "url": result_url,
+            "target": target_key
+        }
+
+    except Exception as e:
+        logger.error(f"[{request_id}] Error during watermark cleaning: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/inpaint")
+async def inpaint_image(request: InpaintRequest):
+    request_id = str(uuid_pkg.uuid4())[:8]
+    logger.info(f"[{request_id}] Received inpaint request for: {request.image_url}")
+    start_time = time.time()
+    try:
+        # 1. Download and Prepare
+        init_image = download_image(request.image_url).resize((1024, 1024))
+        mask_image = download_image(request.mask_url).resize((1024, 1024))
+
+        # Extract Canny edges for structural preservation
+        control_image = get_canny_image(init_image)
+        logger.info(f"[{request_id}] Generated Canny control map.")
+
+        # 2. Setup Inpaint Pipeline (convert from Img2Img to Inpaint without reloading weights if possible)
+        # For simplicity and to avoid VRAM issues, we can use the same pipe if we're careful
+        # But StableDiffusionXLControlNetInpaintPipeline is a separate class.
+        # We can create it using the same components to save memory.
+        inpaint_pipe = StableDiffusionXLControlNetInpaintPipeline(
+            vae=pipe.vae,
+            text_encoder=pipe.text_encoder,
+            text_encoder_2=pipe.text_encoder_2,
+            tokenizer=pipe.tokenizer,
+            tokenizer_2=pipe.tokenizer_2,
+            unet=pipe.unet,
+            controlnet=pipe.controlnet,
+            scheduler=pipe.scheduler,
+            force_zeros_for_empty_prompt=pipe.config.force_zeros_for_empty_prompt,
+            add_watermarker=getattr(pipe, "add_watermarker", None)
+        ).to(DEVICE)
+
+        # 3. Run Inference
+        logger.info(f"[{request_id}] Starting SDXL Inpaint inference...")
+        with torch.inference_mode():
+            images = inpaint_pipe(
+                prompt=request.prompt,
+                negative_prompt="low quality, blurry, distorted text, ugly, messy",
+                image=init_image,
+                mask_image=mask_image,
+                control_image=control_image,
+                strength=request.strength,
+                num_inference_steps=request.num_inference_steps,
+                controlnet_conditioning_scale=request.controlnet_conditioning_scale
+            ).images
+
+        inpainted_image = images[0]
+
+        # 4. Upload result
+        if not request.target_path:
+            filename = f"inpainted_{uuid_pkg.uuid4()}.jpg"
+            target_key = f"inpainted/{filename}"
+        else:
+            target_key = request.target_path
+
+        logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
+        result_url = upload_image(inpainted_image, target_key)
+
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
+
+        return {
+            "status": "success",
+            "url": result_url,
+            "prompt": request.prompt
+        }
+
+    except Exception as e:
+        logger.error(f"[{request_id}] Error during inpainting: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
