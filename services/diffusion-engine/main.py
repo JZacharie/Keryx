@@ -73,9 +73,7 @@ pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
 
 if DEVICE == "cuda":
     pipe.enable_attention_slicing()
-    pipe.enable_model_cpu_offload() # Handles moving to GPU automatically
-else:
-    pipe.to(DEVICE)
+pipe.to(DEVICE)
 print("Models loaded successfully.")
 
 s3_client = boto3.client(
