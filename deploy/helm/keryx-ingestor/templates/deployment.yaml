@@ -9,6 +9,8 @@ spec:
   selector:
     matchLabels:
       {{- include "keryx-ingestor.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
   revisionHistoryLimit: 3
   template:
     metadata:
