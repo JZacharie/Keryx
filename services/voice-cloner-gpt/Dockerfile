@@ -6,15 +6,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
 # 1. System dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     libsndfile1 \
     cmake \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential
 
 # 2. GPT-SoVITS setup
+# Note: Cloning here is convenient but less deterministic for caching.
+# We keep it as per the current setup but ensure it's in its own layer.
 RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
 
 # 3. Install requirements with cache

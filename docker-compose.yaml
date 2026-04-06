@@ -37,7 +37,7 @@ services:
     volumes:
       - sovits-models:/app/pretrained_models
       # Reference audio
-      - ./Joseph.wav:/app/reference/Joseph.wav:ro
+      - ./Mon_enregistrement_1.wav:/app/reference/Mon_enregistrement_1.wav:ro
       # Model cache mount (persistent)
       - voice-cloner-cache:/root/.cache
 

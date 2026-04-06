@@ -14,14 +14,15 @@ ENV WHISPER_CACHE=/app/whisper_models
 WORKDIR /app
 
 # 1. Install system dependencies (rarely change)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
     ffmpeg \
     git \
     libopencv-dev \
-    python3-opencv \
-    && rm -rf /var/lib/apt/lists/*
+    python3-opencv
 
 # 2. Upgrade pip and set up cache for pip
 RUN --mount=type=cache,target=/root/.cache/pip \

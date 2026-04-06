@@ -4,14 +4,16 @@ FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     ffmpeg \
-    libsndfile1 \
-    && rm -rf /var/lib/apt/lists/*
+    libsndfile1
 
-# Install Coqui TTS and other dependencies
-RUN pip install --no-cache-dir \
+# Install Coqui TTS and other dependencies with pip cache
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install \
     TTS \
     fastapi \
     uvicorn \

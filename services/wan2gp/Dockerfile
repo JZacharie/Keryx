@@ -10,14 +10,14 @@ ENV HF_HOME=/app/huggingface
 
 WORKDIR /app
 
-# 1. Install system dependencies
-# These change rarely, so they stay at the top
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 1. Install system dependencies (rarely change)
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
     ffmpeg \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    git
 
 # 2. Upgrade pip and set up cache for pip
 RUN --mount=type=cache,target=/root/.cache/pip \

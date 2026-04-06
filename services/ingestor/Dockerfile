@@ -2,7 +2,9 @@
 FROM debian:trixie-slim AS runner
 
 # Install yt-dlp, ffmpeg and standard CA certs
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     curl \
@@ -13,7 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     aria2 \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
-    && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
 WORKDIR /app
@@ -37,7 +38,9 @@ CMD ["/usr/local/bin/keryx-ingestor"]
 # --- Full Build ---
 FROM lukemathwalker/cargo-chef:latest-rust-1.80-slim AS chef
 WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y pkg-config libssl-dev curl
 
 FROM chef AS planner
 COPY . .

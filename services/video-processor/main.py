@@ -15,7 +15,7 @@ import time
 # Host address of the voice-cloner service (GPT-SoVITS)
 VOICE_CLONER_URL = os.getenv("VOICE_CLONER_URL", "http://voice-cloner:9880")
 DIFFUSION_ENGINE_URL = os.getenv("DIFFUSION_ENGINE_URL", "http://diffusion-engine:8000")
-REF_AUDIO_PATH = "/app/reference/Joseph.wav"
+REF_AUDIO_PATH = "/app/reference/Mon_enregistrement_1.wav"
 
 def clean_watermark_local(image_path):
     """Call Diffusion Engine to remove watermark from a local image file."""
@@ -104,7 +104,7 @@ def generate_tts(text, lang, output_path):
         "text": text,
         "text_lang": lang,
         "ref_audio_path": REF_AUDIO_PATH,
-        "prompt_text": "Aujourd'hui, j'explore de nouveaux horizons avec l'intelligence artificielle.",
+        "prompt_text": "Aujourd'hui, j'explore de nouveaux horizons avec l'intelligence artificielle. Est-ce que tu te rends compte de la précision nécessaire ? Chaque mot compte, chaque silence apporte du relief. J'articule avec soi pour que ma signature vocale soit parfaitement capturée. C'est un exercice fascinant ? N'est-ce pas ?",
         "prompt_lang": "fr"
     }
 
