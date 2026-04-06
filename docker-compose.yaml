@@ -1,24 +1,11 @@
 services:
-  # High-quality voice cloning (GPT-SoVITS)
-  voice-cloner:
-    build:
-      context: ./services/voice-cloner-gpt
-      dockerfile: Dockerfile
-    container_name: keryx-voice-cloner
-    ports:
-      - "9880:9880"
-    volumes:
-      - sovits-models:/app/pretrained_models
-      - ./Mon_enregistrement_1.wav:/app/reference/Mon_enregistrement_1.wav:ro
-      - voice-cloner-cache:/root/.cache
-
-  # Alternative voice cloning (Coqui/General)
+  # Voice cloning (Coqui XTTS v2)
   voice-cloner-coqui:
     build:
       context: ./services/voice-cloner
     container_name: keryx-voice-cloner-coqui
     ports:
-      - "9881:9880"
+      - "9880:9880"
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT}
     volumes:
@@ -78,7 +65,7 @@ services:
       dockerfile: Dockerfile
     container_name: keryx-video-processor
     environment:
-      - VOICE_CLONER_URL=http://voice-cloner:9880
+      - VOICE_CLONER_URL=http://voice-cloner-coqui:9880
       - DIFFUSION_ENGINE_URL=http://diffusion-engine:8000
       - HF_TOKEN=${HF_TOKEN}
     volumes:
@@ -87,15 +74,13 @@ services:
       - whisper-cache:/app/whisper_models
       - hf-cache:/app/huggingface
     depends_on:
-      voice-cloner:
+      voice-cloner-coqui:
         condition: service_started
       diffusion-engine:
         condition: service_started
 
 volumes:
-  voice-cloner-cache:
   whisper-cache:
   hf-cache:
   keryx-cache:
-  sovits-models:
   coqui-models:

@@ -22,20 +22,17 @@ RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
 
 # 3. Install requirements with cache
 RUN --mount=type=cache,target=/root/.cache/pip \
-    sed -i '/transformers/d' requirements.txt && \
+    sed -i '/transformers/d; /peft/d' requirements.txt && \
     pip uninstall -y torchaudio && \
     pip install torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install "transformers>=4.45.0" "peft>=0.12.0" && \
     pip install -r requirements.txt \
     fastapi \
     uvicorn \
     requests \
-    "transformers>=4.45.0" \
     dm-tree>=0.1.8 \
     x-transformers \
-    f5-tts && \
-    # Patch BeamSearchScorer import removed in transformers>=4.40
-    sed -i 's/from transformers import (/from transformers import (\n    BeamSearchScorer,/; /BeamSearchScorer,/{ N; /BeamSearchScorer,\n    BeamSearchScorer,/d }' \
-        /opt/conda/lib/python3.10/site-packages/TTS/tts/layers/xtts/stream_generator.py 2>/dev/null || true
+    f5-tts
 
 # 4. Final step: Copy my API wrapper
 COPY gpt_api.py .
