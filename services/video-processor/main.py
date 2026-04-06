@@ -71,6 +71,37 @@ def translate_transcript(transcript, dest_lang='fr'):
         translated_segments.append(seg_copy)
     return translated_segments
 
+def extract_keyframes_scene(video_path, output_folder, threshold=8.0):
+    """Extract keyframes via scene change detection, independent of transcription."""
+    print(f"Extracting keyframes via scene detection to {output_folder}...")
+    os.makedirs(output_folder, exist_ok=True)
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24
+    prev_gray = None
+    frame_idx = 0
+    saved = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if prev_gray is not None:
+            diff = cv2.absdiff(gray, prev_gray)
+            score = diff.mean()
+            if score > threshold:
+                cv2.imwrite(os.path.join(output_folder, f"key_{saved:04d}.jpg"), frame)
+                saved += 1
+        else:
+            # Always save first frame
+            cv2.imwrite(os.path.join(output_folder, f"key_{saved:04d}.jpg"), frame)
+            saved += 1
+        prev_gray = gray
+        frame_idx += 1
+
+    cap.release()
+    print(f"Scene detection complete: {saved} keyframes saved.")
+
 def extract_keyframes(video_path, output_folder, segments):
     print(f"Extracting keyframes to {output_folder}...")
     os.makedirs(output_folder, exist_ok=True)
@@ -96,24 +127,18 @@ def extract_keyframes(video_path, output_folder, segments):
     video.release()
 
 def generate_tts(text, lang, output_path):
-    """Call GPT-SoVITS API."""
-    # Standard GPT-SoVITS FAST-API parameters
-    # Note: lang should be 'zh', 'en', 'ja', 'fr', 'ko' etc.
+    """Call Coqui XTTS v2 API."""
     params = {
         "text": text,
-        "text_lang": lang,
-        "ref_audio_path": REF_AUDIO_PATH,
-        "prompt_text": "Aujourd'hui, j'explore de nouveaux horizons avec l'intelligence artificielle. Est-ce que tu te rends compte de la précision nécessaire ? Chaque mot compte, chaque silence apporte du relief. J'articule avec soi pour que ma signature vocale soit parfaitement capturée. C'est un exercice fascinant ? N'est-ce pas ?",
-        "prompt_lang": "fr"
+        "language": lang,
+        "speaker_wav": "/app/host/Mon_enregistrement_1.wav",
     }
 
-    # Retry logic for service availability
     max_retries = 10
     retry_delay = 10
     
     for attempt in range(max_retries):
         try:
-            # Assuming the voice-cloner has a /tts or similar endpoint
             response = requests.get(VOICE_CLONER_URL, params=params, timeout=300)
             if response.status_code == 200:
                 with open(output_path, "wb") as f:
@@ -211,11 +236,33 @@ def main():
     # Original Fallback behavior
     kf_folder = "/app/outputs/keyframes/industrializing/"
     os.makedirs(kf_folder, exist_ok=True)
+
+    # 1. Extract audio
     duration = extract_audio(video_path, audio_path)
+
+    # 2. Extract keyframes via scene detection (independent of transcription)
+    extract_keyframes_scene(video_path, kf_folder)
+
+    # 3. Clean watermarks on all extracted frames
+    files = sorted([f for f in os.listdir(kf_folder) if f.endswith('.jpg') or f.endswith('.png')])
+    for filename in files:
+        clean_watermark_local(os.path.join(kf_folder, filename))
+
+    # 4. Transcribe
     transcript = transcribe_audio(audio_path, language="en")
+
+    # 5. Translate and map frames to segments
     segments = translate_transcript(transcript, dest_lang='fr')
-    extract_keyframes(video_path, kf_folder, segments)
-    
+    fps_ref = cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FPS) or 24
+    for seg in segments:
+        target_time = (seg['start'] + seg['end']) / 2
+        # Find closest keyframe by timestamp
+        closest = min(files, key=lambda f: abs(int(f.split('_')[1].split('.')[0]) / fps_ref - target_time), default=None)
+        if closest:
+            seg['keyframe'] = closest
+
+    segments = [s for s in segments if 'keyframe' in s]
+
     with open("/app/outputs/transcripts/manifest.json", "w") as f:
         json.dump(segments, f, indent=2)
 
