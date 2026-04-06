@@ -25,7 +25,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt \
     fastapi \
     uvicorn \
-    requests
+    requests \
+    transformers==4.37.2 \
+    dm-tree>=0.1.8
 
 # 4. Final step: Copy my API wrapper
 COPY gpt_api.py .

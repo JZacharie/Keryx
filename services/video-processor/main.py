@@ -108,19 +108,27 @@ def generate_tts(text, lang, output_path):
         "prompt_lang": "fr"
     }
 
-    try:
-        # Assuming the voice-cloner has a /tts or similar endpoint
-        response = requests.get(VOICE_CLONER_URL, params=params, timeout=300)
-        if response.status_code == 200:
-            with open(output_path, "wb") as f:
-                f.write(response.content)
-            return True
-        else:
-            print(f"TTS Error {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print(f"TTS Exception: {str(e)}")
-        return False
+    # Retry logic for service availability
+    max_retries = 10
+    retry_delay = 10
+    
+    for attempt in range(max_retries):
+        try:
+            # Assuming the voice-cloner has a /tts or similar endpoint
+            response = requests.get(VOICE_CLONER_URL, params=params, timeout=300)
+            if response.status_code == 200:
+                with open(output_path, "wb") as f:
+                    f.write(response.content)
+                return True
+            else:
+                print(f"TTS Error {response.status_code} (Attempt {attempt+1}/{max_retries}): {response.text}")
+        except Exception as e:
+            print(f"TTS Connection Attempt {attempt+1}/{max_retries} failed: {str(e)}")
+        
+        if attempt < max_retries - 1:
+            time.sleep(retry_delay)
+    
+    return False
 
 def assemble_video(segments, output_folder, tts_lang, final_video_path):
     print(f"Assembling video version: {tts_lang} -> {final_video_path}...")
