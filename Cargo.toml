@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "services/ingestor",
+]
+resolver = "2"

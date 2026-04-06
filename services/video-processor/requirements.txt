@@ -1,0 +1,15 @@
+openai-whisper
+moviepy<2.0.0
+numpy<2.0.0
+transformers
+torch
+torchaudio
+deep-translator
+tqdm
+pydub
+fastapi
+uvicorn
+requests
+python-multipart
+opencv-python
+ffmpeg-python

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: keryx-ingestor
+description: A Helm chart for Keryx Ingestor Service
+version: 0.1.0
+appVersion: "1.0.0"

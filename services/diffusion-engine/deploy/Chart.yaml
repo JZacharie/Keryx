@@ -1,0 +1,6 @@
+apiVersion: v2
+name: diffusion-engine
+description: Keryx AI Image Styling Microservice
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

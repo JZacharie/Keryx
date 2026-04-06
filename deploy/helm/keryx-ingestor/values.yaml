@@ -1,0 +1,44 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/jzacharie/keryx-ingestor
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+hostNetwork: true
+
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  hosts:
+    - host: keryx.p.zacharie.org
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 2Gi
+
+env:
+  RUST_LOG: "debug"
+  REDIS_URL: "redis://dragonfly.dragonfly.svc.cluster.local:6379"
+  S3_BUCKET: "keryx-raw"
+  S3_REGION: "eu-west-1"
+  S3_ENDPOINT: "http://minio:9000"
+
+nodeSelector:
+  kubernetes.io/hostname: vm169
+
+tolerations: []
+affinity: {}
