@@ -22,12 +22,14 @@ RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
 
 # 3. Install requirements with cache
 RUN --mount=type=cache,target=/root/.cache/pip \
+    sed -i '/transformers/d' requirements.txt && \
     pip install -r requirements.txt \
     fastapi \
     uvicorn \
     requests \
-    transformers==4.37.2 \
-    dm-tree>=0.1.8
+    transformers==4.43.0 \
+    dm-tree>=0.1.8 \
+    jax>=0.4.1
 
 # 4. Final step: Copy my API wrapper
 COPY gpt_api.py .

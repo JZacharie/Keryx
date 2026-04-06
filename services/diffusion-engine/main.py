@@ -251,8 +251,18 @@ async def clean_watermark(request: CleanRequest):
         mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
 
         # 3. Setup Inpaint Pipeline (Regular SDXL Inpaint, no ControlNet needed for this)
-        # We use from_pipe to share components and save VRAM
-        inpaint_pipe = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
+        # We initialize it with components to share VRAM without relying on from_pipe
+        inpaint_pipe = StableDiffusionXLInpaintPipeline(
+            vae=pipe.vae,
+            text_encoder=pipe.text_encoder,
+            text_encoder_2=pipe.text_encoder_2,
+            tokenizer=pipe.tokenizer,
+            tokenizer_2=pipe.tokenizer_2,
+            unet=pipe.unet,
+            scheduler=pipe.scheduler,
+            force_zeros_for_empty_prompt=getattr(pipe.config, "force_zeros_for_empty_prompt", True),
+            add_watermarker=getattr(pipe, "add_watermarker", None)
+        )
         if DEVICE != "cuda":
             inpaint_pipe.to(DEVICE)
         else:
