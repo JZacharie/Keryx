@@ -156,6 +156,12 @@ def main():
     audio_path = "/app/outputs/audio/industrializing.wav"
     kf_folder = "/app/outputs/keyframes/industrializing/"
 
+    # Ensure output directories exist before processing
+    os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+    os.makedirs(kf_folder, exist_ok=True)
+    os.makedirs("/app/outputs/transcripts", exist_ok=True)
+    os.makedirs("/app/outputs/revoiced", exist_ok=True)
+
     # Step 1 & 2: Extract & Transcribe
     duration = extract_audio(video_path, audio_path)
     transcript = transcribe_audio(audio_path, language="en")

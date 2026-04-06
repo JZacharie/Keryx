@@ -27,13 +27,6 @@ services:
     container_name: keryx-voice-cloner
     ports:
       - "9880:9880"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - sovits-models:/app/pretrained_models
       # Reference audio
@@ -50,13 +43,6 @@ services:
       - "9881:9880" # Mapping to 9881 to avoid conflict
     environment:
       - S3_ENDPOINT=http://minio:9000
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - coqui-models:/root/.local/share/tts
       - .:/app/host
@@ -73,13 +59,6 @@ services:
       - AWS_SECRET_ACCESS_KEY=minioadmin # pragma: allowlist secret
       - S3_BUCKET=keryx
       - MODEL_ID=stabilityai/sdxl-turbo
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     depends_on:
       minio:
         condition: service_healthy
@@ -99,13 +78,6 @@ services:
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin # pragma: allowlist secret
       - S3_BUCKET=keryx
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     depends_on:
       minio:
         condition: service_healthy
@@ -122,13 +94,6 @@ services:
     environment:
       - VOICE_CLONER_URL=http://voice-cloner:9880
       - DIFFUSION_ENGINE_URL=http://diffusion-engine:8000
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - .:/app/host:ro
       - ./outputs:/app/outputs
