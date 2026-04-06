@@ -157,45 +157,74 @@ async def upload_video(path: str, key: str) -> str:
         await s3.upload_file(path, S3_BUCKET, key, ExtraArgs={"ContentType": "video/mp4"})
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
-def inpaint_bottom_right(inpaint_pipe, image: Image.Image) -> Image.Image:
-    """Inpaint the bottom-right watermark zone at native resolution (rounded to multiple of 64)."""
-    from PIL import ImageDraw, ImageFilter
-    w, h = image.size
+def remove_notebooklm_watermark(image: Image.Image) -> Image.Image:
+    """Remove NotebookLM watermark (bottom-right) + dot grid via median blur + inpaint."""
+    import cv2
+    img = np.array(image.convert("RGB"))
+    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    h, w = img.shape[:2]
 
-    # Round to nearest multiple of 64 (SDXL requirement)
-    tw = (w // 64) * 64
-    th = (h // 64) * 64
-    working = image.resize((tw, th), Image.LANCZOS) if (tw, th) != (w, h) else image.copy()
+    # 1. Remove dot grid with median blur (kills isolated single pixels, preserves edges)
+    bgr = cv2.medianBlur(bgr, 3)
 
-    # Mask: only the bottom-right watermark zone
-    mask = Image.new("L", (tw, th), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rectangle([int(tw * 0.82), int(th * 0.90), tw, th], fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(radius=6))
+    # 2. Detect & inpaint NotebookLM watermark (bottom-right zone, gray pixels ~#535353)
+    sx1, sy1 = int(w * 0.60), int(h * 0.85)
+    zone = bgr[sy1:h, sx1:w]
+    zone_gray = cv2.cvtColor(zone, cv2.COLOR_BGR2GRAY)
+    # Gray logo pixels: 20 < value < 210 in a near-gray zone
+    wm_mask = np.zeros(zone_gray.shape, dtype=np.uint8)
+    wm_mask[(zone_gray > 20) & (zone_gray < 210)] = 255
+    # Only keep pixels that are actually gray (R≈G≈B)
+    ch = zone.astype(int)
+    not_gray = (np.abs(ch[:,:,0]-ch[:,:,1]) > 30) | (np.abs(ch[:,:,1]-ch[:,:,2]) > 30)
+    wm_mask[not_gray] = 0
 
-    with torch.inference_mode():
-        result = inpaint_pipe(
-            prompt="matching background texture, seamless, clean, professional",
-            negative_prompt="text, logo, watermark, blurry, distorted",
-            image=working,
-            mask_image=mask,
-            num_inference_steps=20,
-            strength=0.95,
-            height=th,
-            width=tw,
-        ).images[0]
+    if wm_mask.sum() > 50 * 255:
+        zone_inpainted = cv2.inpaint(zone, wm_mask, 3, cv2.INPAINT_TELEA)
+        bgr[sy1:h, sx1:w] = zone_inpainted
 
-    # Resize back to original if needed
-    if (tw, th) != (w, h):
-        result = result.resize((w, h), Image.LANCZOS)
-    return result
+    return Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
 
 
-    image_np = np.array(image)
-    image_np = cv2.Canny(image_np, 100, 200)
-    image_np = image_np[:, :, None]
-    image_np = np.concatenate([image_np, image_np, image_np], axis=2)
-    return Image.fromarray(image_np)
+def remove_background(image: Image.Image) -> Image.Image:
+    """Massive object vectorization: GaussianBlur + MORPH_CLOSE + RETR_EXTERNAL, white background."""
+    import cv2
+    arr = np.array(image.convert("RGB"))
+    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    h, w = arr.shape[:2]
+
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(blurred, 245, 255, cv2.THRESH_BINARY_INV)
+
+    # Weld nearby elements into solid blocks
+    kernel = np.ones((15, 15), np.uint8)
+    morphed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    min_area = h * w * 0.10
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for cnt in contours:
+        if cv2.contourArea(cnt) > min_area:
+            cv2.drawContours(mask, [cnt], -1, 255, thickness=-1)
+
+    # Smooth mask edges
+    mask = cv2.GaussianBlur(mask, (7, 7), 0)
+    _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+
+    coords = cv2.findNonZero(mask)
+    if coords is None:
+        return image
+    x, y, cw, ch = cv2.boundingRect(coords)
+    roi = arr[y:y+ch, x:x+cw]
+    mask_roi = mask[y:y+ch, x:x+cw]
+    result = np.full((ch, cw, 3), 255, dtype=np.uint8)
+    result[mask_roi == 255] = roi[mask_roi == 255]
+    return Image.fromarray(result)
+
+
+# Keep old name as alias for video pipeline compatibility
+def inpaint_bottom_right(_pipe, image: Image.Image) -> Image.Image:
+    return remove_notebooklm_watermark(image)
 
 class InpaintRequest(BaseModel):
     image_url: str
@@ -282,20 +311,8 @@ async def clean_watermark(request: CleanRequest):
         init_image = await download_image(request.image_url)
         logger.info(f"[{request_id}] Image size: {init_image.size}")
 
-        inpaint_pipe = StableDiffusionXLInpaintPipeline(
-            vae=pipe.vae,
-            text_encoder=pipe.text_encoder,
-            text_encoder_2=pipe.text_encoder_2,
-            tokenizer=pipe.tokenizer,
-            tokenizer_2=pipe.tokenizer_2,
-            unet=pipe.unet,
-            scheduler=pipe.scheduler,
-            force_zeros_for_empty_prompt=getattr(pipe.config, "force_zeros_for_empty_prompt", True),
-            add_watermarker=False,
-        )
-        inpaint_pipe.enable_model_cpu_offload() if DEVICE == "cuda" else inpaint_pipe.to(DEVICE)
-
-        cleaned_image = inpaint_bottom_right(inpaint_pipe, init_image)
+        cleaned_image = remove_notebooklm_watermark(init_image)
+        cleaned_image = remove_background(cleaned_image)
 
         if request.target_path and request.target_path.startswith("/"):
             os.makedirs(os.path.dirname(request.target_path), exist_ok=True)
@@ -401,22 +418,8 @@ async def clean_video_watermark(request: VideoCleanRequest):
         await asyncio.gather(*[_upload_frame(i) for i in range(1, frame_count + 1)])
         logger.info(f"[{request_id}] All raw frames successfully pushed to S3.")
 
-        # 4. Setup Inpaint Pipeline (After extraction and upload are confirmed)
-        logger.info(f"[{request_id}] Phase 3: Initializing SDXL Inpaint pipeline...")
-        # Manually sharing components with explicit float16 to avoid dtype mismatch
-        inpaint_pipe = StableDiffusionXLInpaintPipeline(
-            vae=pipe.vae,
-            text_encoder=pipe.text_encoder,
-            text_encoder_2=pipe.text_encoder_2,
-            tokenizer=pipe.tokenizer,
-            tokenizer_2=pipe.tokenizer_2,
-            unet=pipe.unet,
-            scheduler=pipe.scheduler,
-            force_zeros_for_empty_prompt=True,
-            add_watermarker=False
-        ).to(DEVICE, torch.float16)
-
-        logger.info(f"[{request_id}] Pipeline ready (Dtype: {inpaint_pipe.dtype}, Device: {inpaint_pipe.device}). Starting watermark removal...")
+        # 4. Process each frame (CV2 background fill, no SDXL needed)
+        logger.info(f"[{request_id}] Starting watermark removal (CV2 background fill)...")
 
         # 5. Process each frame (Downloading back from S3 as requested)
         for i in range(1, frame_count + 1):
@@ -434,7 +437,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
             # Load frame and prepare
             init_image = Image.open(local_raw_path).convert("RGB")
 
-            final_frame = inpaint_bottom_right(inpaint_pipe, init_image)
+            final_frame = inpaint_bottom_right(None, init_image)
 
             # Save cleaned frame (PNG pour éviter la compression JPEG)
             frame_output_filename = f"{cleaned_dir}/frame_{i:04d}.png"
@@ -484,7 +487,35 @@ async def clean_video_watermark(request: VideoCleanRequest):
         # Cleanup
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-@app.post("/inpaint")
+class RemoveBgRequest(BaseModel):
+    image_url: str
+    target_path: Optional[str] = None
+
+@app.post("/remove_background")
+async def remove_background_endpoint(request: RemoveBgRequest):
+    request_id = str(uuid_pkg.uuid4())[:8]
+    logger.info(f"[{request_id}] Remove background request for: {request.image_url}")
+    start_time = time.time()
+    try:
+        init_image = await download_image(request.image_url)
+        result_image = await asyncio.to_thread(remove_background, init_image)
+
+        target_key = request.target_path or f"nobg/{uuid_pkg.uuid4()}.png"
+        if target_key.startswith("/"):
+            os.makedirs(os.path.dirname(target_key), exist_ok=True)
+            result_image.save(target_key, format="PNG")
+            result_url = f"file://{target_key}"
+        else:
+            result_url = await upload_image(result_image, target_key)
+
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Done in {duration:.2f}s. Result: {result_url}")
+        return {"status": "success", "url": result_url}
+    except Exception as e:
+        logger.error(f"[{request_id}] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def inpaint_image(request: InpaintRequest):
     request_id = str(uuid_pkg.uuid4())[:8]
     logger.info(f"[{request_id}] Received inpaint request for: {request.image_url}")
