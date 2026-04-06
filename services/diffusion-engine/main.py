@@ -242,12 +242,24 @@ async def clean_watermark(request: CleanRequest):
         init_image = download_image(request.image_url)
         w, h = init_image.size
 
-        # 2. Create NotebookLM Mask (bottom right)
-        mask = Image.new("L", (w, h), 0)
+        # 2. Crop 1024x1024 bottom right corner for context to retain native resolution
+        crop_size = min(w, h, 1024)
+        left = w - crop_size
+        top = h - crop_size
+        crop_image = init_image.crop((left, top, w, h)).resize((1024, 1024), Image.LANCZOS)
+
+        # Create Mask relative to the crop
+        mask = Image.new("L", (1024, 1024), 0)
         from PIL import ImageDraw, ImageFilter
         draw = ImageDraw.Draw(mask)
-        # NotebookLM zone: [x_start, y_start, x_end, y_end]
-        draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
+        
+        # Original watermark was w * 0.82 and h * 0.90. We map those to our 1024x1024 crop
+        orig_x1, orig_y1 = w * 0.82, h * 0.90
+        local_x1 = int(((orig_x1 - left) / crop_size) * 1024)
+        local_y1 = int(((orig_y1 - top) / crop_size) * 1024)
+        
+        # Draw NotebookLM zone
+        draw.rectangle([max(0, local_x1), max(0, local_y1), 1024, 1024], fill=255)
         mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
 
         # 3. Setup Inpaint Pipeline (Regular SDXL Inpaint, no ControlNet needed for this)
@@ -269,18 +281,24 @@ async def clean_watermark(request: CleanRequest):
             inpaint_pipe.enable_model_cpu_offload()
 
         # 4. Run Inference
-        logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning...")
+        logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning on 1024x1024 crop...")
         with torch.inference_mode():
             images = inpaint_pipe(
-                prompt="matching background texture, seamless, clean, white background",
+                prompt="matching background texture, seamless, clean, professional high quality",
                 negative_prompt="text, logo, blurry, distorted, watermark",
-                image=init_image,
+                image=crop_image,
                 mask_image=mask,
                 num_inference_steps=20,
-                strength=1.0
+                strength=0.95
             ).images
 
-        cleaned_image = images[0]
+        cleaned_crop = images[0]
+        
+        # 5. Paste the cleaned crop back onto the original native resolution image
+        cleaned_crop_resized = cleaned_crop.resize((crop_size, crop_size), Image.LANCZOS)
+        final_image = init_image.copy()
+        final_image.paste(cleaned_crop_resized, (left, top))
+        cleaned_image = final_image
 
         # 5. Upload result or save locally
         if request.target_path and request.target_path.startswith("/"):

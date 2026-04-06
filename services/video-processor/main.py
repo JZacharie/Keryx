@@ -65,12 +65,10 @@ def translate_transcript(transcript, dest_lang='fr'):
         except:
             translated_text = original_text # fallback
 
-        translated_segments.append({
-            "start": segment['start'],
-            "end": segment['end'],
-            "original_text": original_text,
-            "translated_text": translated_text
-        })
+        seg_copy = segment.copy()
+        seg_copy["original_text"] = original_text
+        seg_copy["translated_text"] = translated_text
+        translated_segments.append(seg_copy)
     return translated_segments
 
 def extract_keyframes(video_path, output_folder, segments):
@@ -90,8 +88,9 @@ def extract_keyframes(video_path, output_folder, segments):
             img_path = os.path.join(output_folder, filename)
             cv2.imwrite(img_path, frame)
 
-            # Clean watermark before using it
-            clean_watermark_local(img_path)
+            # Clean watermark only if it's not the first or last image
+            if i > 0 and i < len(segments) - 1:
+                clean_watermark_local(img_path)
 
             segment['keyframe'] = filename
     video.release()
@@ -162,33 +161,64 @@ def assemble_video(segments, output_folder, tts_lang, final_video_path):
 def main():
     video_path = "/app/host/Industrializing_AI.mp4"
     audio_path = "/app/outputs/audio/industrializing.wav"
-    kf_folder = "/app/outputs/keyframes/industrializing/"
+    
+    # We will use the deduplicated folder
+    kf_folder_ai = "/app/outputs/keyframes_ai"
+    manifest_ai = os.path.join(kf_folder_ai, "manifest.json")
 
-    # Ensure output directories exist before processing
     os.makedirs(os.path.dirname(audio_path), exist_ok=True)
-    os.makedirs(kf_folder, exist_ok=True)
     os.makedirs("/app/outputs/transcripts", exist_ok=True)
     os.makedirs("/app/outputs/revoiced", exist_ok=True)
 
-    # Step 1 & 2: Extract & Transcribe
+    if os.path.exists(manifest_ai):
+        print(f"Found deduplicated manifest at {manifest_ai}. Short-circuiting extraction!")
+        with open(manifest_ai, 'r') as f:
+            manifest = json.load(f)
+        
+        # Pull segments from manifest
+        transcript = manifest["transcription"]
+        
+        # Step 3: Translate
+        segments = translate_transcript(transcript, dest_lang='fr')
+        
+        # Map related_keyframes to the 'keyframe' attribute required by assemble_video
+        for seg in segments:
+            if not seg.get("related_keyframes"): continue
+            kf_id = seg["related_keyframes"][0]
+            kf_info = next((k for k in manifest["keyframes"] if k["id"] == kf_id), None)
+            if kf_info:
+                seg["keyframe"] = kf_info["filename"]
+                
+        # Clean watermarks on the deduplicated keyframes
+        import glob
+        files = sorted([f for f in os.listdir(kf_folder_ai) if f.endswith('.jpg') or f.endswith('.png')])
+        for i, filename in enumerate(files):
+            img_path = os.path.join(kf_folder_ai, filename)
+            # Skip first image, systematically delete last image
+            if i > 0 and i < len(files) - 1:
+                clean_watermark_local(img_path)
+            elif i == len(files) - 1:
+                if os.path.exists(img_path):
+                    os.remove(img_path)
+
+        # Remove segments mapped to deleted files
+        segments = [seg for seg in segments if 'keyframe' in seg and os.path.exists(os.path.join(kf_folder_ai, seg["keyframe"]))]
+
+        # Now assemble video directly using the deduplicated keyframes
+        assemble_video(segments, kf_folder_ai, 'fr', "/app/outputs/revoiced/industrializing_fr.mp4")
+        return
+
+    # Original Fallback behavior
+    kf_folder = "/app/outputs/keyframes/industrializing/"
+    os.makedirs(kf_folder, exist_ok=True)
     duration = extract_audio(video_path, audio_path)
     transcript = transcribe_audio(audio_path, language="en")
-
-    # Step 3: Translate
     segments = translate_transcript(transcript, dest_lang='fr')
-
-    # Step 4: Keyframes
     extract_keyframes(video_path, kf_folder, segments)
-
-    # Step 5: Save manifest for review
+    
     with open("/app/outputs/transcripts/manifest.json", "w") as f:
         json.dump(segments, f, indent=2)
 
-    # Step 6: Generate Revoiced Videos
-    # Original EN cloned
-    # assemble_video(segments, kf_folder, 'en', "/app/outputs/revoiced/industrializing_en.mp4")
-
-    # French version
     assemble_video(segments, kf_folder, 'fr', "/app/outputs/revoiced/industrializing_fr.mp4")
 
 if __name__ == "__main__":

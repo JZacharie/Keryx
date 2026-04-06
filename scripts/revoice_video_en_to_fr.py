@@ -93,6 +93,11 @@ async def revoice(manifest_path, keyframes_folder, output_path):
             img_path = os.path.join(keyframes_folder, kf_info["filename"])
             audio_path = os.path.join(tmp_dir, f"speech_{i}.wav")
 
+            # Check if image was systematically deleted
+            if not os.path.exists(img_path):
+                print(f"Warning: Image {img_path} not found (likely deleted). Skipping segment {i}.")
+                continue
+
             print(f"Cloning voice for segment {i} ({text[:30]}...)...")
             success = await generate_cloned_speech(text, audio_path)
 
