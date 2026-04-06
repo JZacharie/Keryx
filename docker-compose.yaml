@@ -1,5 +1,4 @@
 services:
-  # Voice cloning (Coqui XTTS v2)
   voice-cloner-coqui:
     build:
       context: ./services/voice-cloner
@@ -11,6 +10,13 @@ services:
     volumes:
       - coqui-models:/root/.local/share/tts
       - .:/app/host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   diffusion-engine:
     build:
@@ -29,6 +35,13 @@ services:
       - keryx-cache:/app/.cache
       - ./outputs:/app/outputs
       - .:/app/host:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   wan2gp:
     build:
@@ -46,6 +59,13 @@ services:
       - keryx-cache:/app/.cache
       - ./outputs:/app/outputs
       - .:/app/host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   pptx-builder:
     build:
@@ -73,6 +93,13 @@ services:
       - ./outputs:/app/outputs
       - whisper-cache:/app/whisper_models
       - hf-cache:/app/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       voice-cloner-coqui:
         condition: service_started

@@ -49,6 +49,17 @@ def calculate_diff(img1_path, img2_path):
     except Exception as e:
         return float('inf')
 
+def crop_to_target(image_path, target_w=1257, target_h=720):
+    """Crops the image to match target resolution, usually 1257x720 from 1280x720."""
+    try:
+        with Image.open(image_path) as img:
+            w, h = img.size
+            if w == target_w and h == target_h:
+                return
+            
+    except Exception as e:
+        print(f"Crop Exception for {image_path}: {e}")
+
 def process_video(video_path, output_folder, scene_threshold=0.01, dedup_threshold=10.0, run_asr=True):
     if not os.path.exists(video_path):
         print(f"Error: Video not found at {video_path}")
@@ -114,6 +125,9 @@ def process_video(video_path, output_folder, scene_threshold=0.01, dedup_thresho
                 final_path = os.path.join(output_folder, final_name)
 
                 shutil.copy(candidate_path, final_path)
+
+                # Crop to goal resolution (1257x720) before watermark cleaning
+                crop_to_target(final_path)
 
                 # Help with clean watermark
                 clean_watermark_local(final_path)

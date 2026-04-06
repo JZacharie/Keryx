@@ -158,32 +158,27 @@ async def upload_video(path: str, key: str) -> str:
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
 def remove_notebooklm_watermark(image: Image.Image) -> Image.Image:
-    """Remove NotebookLM watermark (bottom-right) + dot grid via median blur + inpaint."""
-    import cv2
-    img = np.array(image.convert("RGB"))
-    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    h, w = img.shape[:2]
+    """
+    Surgical removal of the NotebookLM logo (bottom-right corner only).
+    Samples the background color just above the logo zone and fills with it.
+    No AI needed — the background is always a flat/near-flat color.
+    """
+    from PIL import ImageDraw
+    import numpy as np
 
-    # 1. Remove dot grid with median blur (kills isolated single pixels, preserves edges)
-    bgr = cv2.medianBlur(bgr, 3)
+    img = image.copy().convert("RGB")
+    w, h = img.size
 
-    # 2. Detect & inpaint NotebookLM watermark (bottom-right zone, gray pixels ~#535353)
-    sx1, sy1 = int(w * 0.60), int(h * 0.85)
-    zone = bgr[sy1:h, sx1:w]
-    zone_gray = cv2.cvtColor(zone, cv2.COLOR_BGR2GRAY)
-    # Gray logo pixels: 20 < value < 210 in a near-gray zone
-    wm_mask = np.zeros(zone_gray.shape, dtype=np.uint8)
-    wm_mask[(zone_gray > 20) & (zone_gray < 210)] = 255
-    # Only keep pixels that are actually gray (R≈G≈B)
-    ch = zone.astype(int)
-    not_gray = (np.abs(ch[:,:,0]-ch[:,:,1]) > 30) | (np.abs(ch[:,:,1]-ch[:,:,2]) > 30)
-    wm_mask[not_gray] = 0
+    # Logo bounding box (tight)
+    x1, y1 = int(w * 0.80), int(h * 0.91)
 
-    if wm_mask.sum() > 50 * 255:
-        zone_inpainted = cv2.inpaint(zone, wm_mask, 3, cv2.INPAINT_TELEA)
-        bgr[sy1:h, sx1:w] = zone_inpainted
+    # Sample background color from a small patch just above the logo
+    sample_patch = np.array(img.crop((x1, y1 - 10, w, y1)))
+    bg_color = tuple(np.median(sample_patch.reshape(-1, 3), axis=0).astype(int).tolist())
 
-    return Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    # Fill the logo zone with the sampled background color
+    ImageDraw.Draw(img).rectangle([x1, y1, w, h], fill=bg_color)
+    return img
 
 
 def remove_background(image: Image.Image) -> Image.Image:
@@ -312,7 +307,6 @@ async def clean_watermark(request: CleanRequest):
         logger.info(f"[{request_id}] Image size: {init_image.size}")
 
         cleaned_image = remove_notebooklm_watermark(init_image)
-        cleaned_image = remove_background(cleaned_image)
 
         if request.target_path and request.target_path.startswith("/"):
             os.makedirs(os.path.dirname(request.target_path), exist_ok=True)

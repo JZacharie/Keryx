@@ -47,7 +47,7 @@ def extract_audio(video_path, audio_path):
 
 def transcribe_audio(audio_path, language=None):
     print(f"Transcribing {audio_path}...")
-    model = whisper.load_model("base", device="cuda" if torch.cuda.is_available() else "cpu")
+    model = whisper.load_model("medium", device="cuda" if torch.cuda.is_available() else "cpu")
     result = model.transcribe(audio_path, language=language, verbose=False)
     return result
 
@@ -71,7 +71,17 @@ def translate_transcript(transcript, dest_lang='fr'):
         translated_segments.append(seg_copy)
     return translated_segments
 
-def extract_keyframes_scene(video_path, output_folder, threshold=8.0):
+def crop_slide_borders(img_bgr):
+    """
+    Crop 15% from each side to remove adjacent slide overflow.
+    """
+    h, w = img_bgr.shape[:2]
+    left = int(w * 0.15)
+    right = int(w * 0.85)
+    return img_bgr[:, left:right]
+
+
+def extract_keyframes_scene(video_path, output_folder, threshold=15.0):
     """Extract keyframes via scene change detection, independent of transcription."""
     print(f"Extracting keyframes via scene detection to {output_folder}...")
     os.makedirs(output_folder, exist_ok=True)
@@ -90,12 +100,10 @@ def extract_keyframes_scene(video_path, output_folder, threshold=8.0):
             diff = cv2.absdiff(gray, prev_gray)
             score = diff.mean()
             if score > threshold:
+                frame = crop_slide_borders(frame)
                 cv2.imwrite(os.path.join(output_folder, f"key_{saved:04d}.jpg"), frame)
                 saved += 1
-        else:
-            # Always save first frame
-            cv2.imwrite(os.path.join(output_folder, f"key_{saved:04d}.jpg"), frame)
-            saved += 1
+        # Skip frame_idx==0 (always a transition frame at video start)
         prev_gray = gray
         frame_idx += 1
 
