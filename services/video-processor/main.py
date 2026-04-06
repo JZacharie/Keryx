@@ -27,7 +27,7 @@ def clean_watermark_local(image_path):
             "image_url": image_path,
             "target_path": image_path # Overwrite original
         }
-        response = requests.post(url, json=payload, timeout=60)
+        response = requests.post(url, json=payload, timeout=600)
         if response.status_code == 200:
             print(f"Cleaned {image_path} successfully.")
             return True

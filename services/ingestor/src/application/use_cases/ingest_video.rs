@@ -7,6 +7,7 @@ use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer};
 use crate::domain::ports::stt_repository::STTRepository;
 use crate::domain::ports::translator_repository::TranslatorRepository;
 use crate::domain::ports::stylizer_repository::StylizerRepository;
+use crate::domain::ports::pptx_repository::{PptxRepository, SlideInput};
 use crate::domain::entities::job::{JobStatus, SlideAsset, TranslationAsset};
 
 pub struct IngestVideoUseCase {
@@ -17,6 +18,7 @@ pub struct IngestVideoUseCase {
     stt_repo: Arc<dyn STTRepository>,
     translator: Arc<dyn TranslatorRepository>,
     stylizer: Arc<dyn StylizerRepository>,
+    pptx_repo: Arc<dyn PptxRepository>,
 }
 
 impl IngestVideoUseCase {
@@ -28,8 +30,9 @@ impl IngestVideoUseCase {
         stt_repo: Arc<dyn STTRepository>,
         translator: Arc<dyn TranslatorRepository>,
         stylizer: Arc<dyn StylizerRepository>,
+        pptx_repo: Arc<dyn PptxRepository>,
     ) -> Self {
-        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator, stylizer }
+        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator, stylizer, pptx_repo }
     }
 
     pub fn get_job_repo(&self) -> Arc<dyn JobRepository> {
@@ -88,6 +91,15 @@ impl IngestVideoUseCase {
         job.assets_map = slide_assets;
         job.status = JobStatus::Transcribing;
         self.job_repo.save(&job).await?;
+
+        // 5. Build editable PPTX from cleaned frames
+        tracing::info!("[Job {}] Phase 4b: Building PPTX from cleaned slides...", job_id);
+        let pptx_slides: Vec<SlideInput> = job.assets_map.iter().map(|s| SlideInput {
+            image_url: s.original_frame.clone(),
+            text: String::new(), // transcript will be filled after STT
+        }).collect();
+        let pptx_url = self.pptx_repo.build(&job_id.to_string(), pptx_slides).await?;
+        tracing::info!("[Job {}] PPTX available at: {}", job_id, pptx_url);
 
         // 5. Transcribe
         tracing::info!("[Job {}] Phase 4: Transcribing audio...", job_id);

@@ -15,6 +15,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install \
     TTS \
+    "transformers<4.40" \
     fastapi \
     uvicorn \
     python-multipart

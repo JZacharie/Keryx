@@ -14,6 +14,7 @@ from PIL import Image
 import boto3
 from urllib.parse import urlparse
 from moviepy.editor import ImageSequenceClip
+from huggingface_hub import login as hf_login
 
 # Configure Verbose Logging
 logging.basicConfig(
@@ -30,9 +31,12 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
-MODEL_ID = os.getenv("MODEL_ID", "stabilityai/stable-video-diffusion-img2vid-xt-1-1")
+MODEL_ID = os.getenv("MODEL_ID", "stabilityai/stable-video-diffusion-img2vid-xt")
 HF_TOKEN = os.getenv("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+if HF_TOKEN:
+    hf_login(token=HF_TOKEN)
 
 print(f"Loading Animation Pipeline on {DEVICE}...")
 torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32

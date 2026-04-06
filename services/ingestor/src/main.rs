@@ -17,6 +17,7 @@ use keryx_ingestor::{
         whisper_stt_repository::WhisperSTTRepository,
         ollama_translator_repository::OllamaTranslatorRepository,
         diffusion_stylizer_repository::DiffusionStylizerRepository,
+        pptx_builder_repository::PptxBuilderRepository,
     },
 };
 use std::path::PathBuf;
@@ -33,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let diffusion_url = std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://keryx-diffusion-engine".to_string());
     let whisper_url = std::env::var("WHISPER_URL").unwrap_or_else(|_| "http://192.168.0.194:9000".to_string());
     let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://192.168.0.191:11434".to_string());
+    let pptx_url = std::env::var("PPTX_URL").unwrap_or_else(|_| "http://keryx-pptx-builder:8002".to_string());
 
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)?;
@@ -45,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let stt_repo = Arc::new(WhisperSTTRepository::new(&whisper_url));
     let translator = Arc::new(OllamaTranslatorRepository::new(&ollama_url, "llama3"));
     let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
+    let pptx_repo = Arc::new(PptxBuilderRepository::new(pptx_url));
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -55,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
         stt_repo,
         translator,
         stylizer,
+        pptx_repo,
     ));
 
     // Initialize state

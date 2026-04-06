@@ -3,6 +3,7 @@ import io
 import uuid
 import uuid as uuid_pkg
 import time
+import asyncio
 import numpy as np
 import cv2
 import logging
@@ -22,7 +23,8 @@ from diffusers import (
     AutoPipelineForImage2Image
 )
 from PIL import Image
-import boto3
+import aioboto3
+import httpx
 from urllib.parse import urlparse
 
 # Configure Verbose Logging
@@ -76,13 +78,16 @@ if DEVICE == "cuda":
 pipe.to(DEVICE)
 print("Models loaded successfully.")
 
-s3_client = boto3.client(
-    "s3",
-    endpoint_url=S3_ENDPOINT,
-    aws_access_key_id=S3_ACCESS_KEY,
-    aws_secret_access_key=S3_SECRET_KEY,
-    verify=False # Common for local MinIO
-)
+s3_session = aioboto3.Session()
+
+def _s3_client():
+    return s3_session.client(
+        "s3",
+        endpoint_url=S3_ENDPOINT,
+        aws_access_key_id=S3_ACCESS_KEY,
+        aws_secret_access_key=S3_SECRET_KEY,
+        verify=False,
+    )
 
 class StylingRequest(BaseModel):
     image_url: str
@@ -96,60 +101,96 @@ class StylingRequest(BaseModel):
 def health():
     return {"status": "ok", "device": DEVICE, "model": MODEL_ID, "controlnet": CONTROLNET_ID}
 
-def download_image(url: str) -> Image.Image:
+async def download_image(url: str) -> Image.Image:
     if url.startswith("/") and os.path.exists(url):
-        logger.info(f"Loading local image from: {url}")
-        return Image.open(url).convert("RGB")
+        return await asyncio.to_thread(lambda: Image.open(url).convert("RGB"))
 
     parsed = urlparse(url)
     if "zacharie.org" in parsed.netloc or "minio" in parsed.netloc:
         parts = parsed.path.lstrip("/").split("/")
         bucket = parts[0]
         key = "/".join(parts[1:])
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        return Image.open(io.BytesIO(response["Body"].read())).convert("RGB")
+        async with _s3_client() as s3:
+            response = await s3.get_object(Bucket=bucket, Key=key)
+            data = await response["Body"].read()
+        return await asyncio.to_thread(lambda: Image.open(io.BytesIO(data)).convert("RGB"))
     else:
-        import requests
-        response = requests.get(url)
-        return Image.open(io.BytesIO(response.content)).convert("RGB")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+        return await asyncio.to_thread(lambda: Image.open(io.BytesIO(response.content)).convert("RGB"))
 
 
-def upload_image(image: Image.Image, key: str) -> str:
-    buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=90)
-    buffer.seek(0)
-    s3_client.put_object(
-        Bucket=S3_BUCKET,
-        Key=key,
-        Body=buffer,
-        ContentType="image/jpeg"
-    )
+async def upload_image(image: Image.Image, key: str) -> str:
+    def _encode():
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        return buf.getvalue()
+
+    data = await asyncio.to_thread(_encode)
+    async with _s3_client() as s3:
+        await s3.put_object(Bucket=S3_BUCKET, Key=key, Body=data, ContentType="image/png")
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
-def download_video(url: str, dest_path: str):
+async def download_video(url: str, dest_path: str):
+    # Support local paths
+    if url.startswith("/") and os.path.exists(url):
+        logger.info(f"Using local video file: {url}")
+        shutil.copy(url, dest_path)
+        return
+
     parsed = urlparse(url)
     if any(h in parsed.netloc for h in ["zacharie.org", "minio", "localhost"]):
         parts = parsed.path.lstrip("/").split("/")
         bucket = parts[0]
         key = "/".join(parts[1:])
-        s3_client.download_file(bucket, key, dest_path)
+        async with _s3_client() as s3:
+            await s3.download_file(bucket, key, dest_path)
     else:
-        import requests
-        response = requests.get(url, stream=True)
-        with open(dest_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        async with httpx.AsyncClient() as client:
+            async with client.stream("GET", url) as response:
+                with open(dest_path, "wb") as f:
+                    async for chunk in response.aiter_bytes(8192):
+                        f.write(chunk)
 
-def upload_video(path: str, key: str) -> str:
-    s3_client.upload_file(
-        path,
-        S3_BUCKET,
-        key,
-        ExtraArgs={"ContentType": "video/mp4"}
-    )
+async def upload_video(path: str, key: str) -> str:
+    async with _s3_client() as s3:
+        await s3.upload_file(path, S3_BUCKET, key, ExtraArgs={"ContentType": "video/mp4"})
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
-def get_canny_image(image: Image.Image) -> Image.Image:
+def inpaint_bottom_right(inpaint_pipe, image: Image.Image) -> Image.Image:
+    """Inpaint the bottom-right watermark zone at native resolution (rounded to multiple of 64)."""
+    from PIL import ImageDraw, ImageFilter
+    w, h = image.size
+
+    # Round to nearest multiple of 64 (SDXL requirement)
+    tw = (w // 64) * 64
+    th = (h // 64) * 64
+    working = image.resize((tw, th), Image.LANCZOS) if (tw, th) != (w, h) else image.copy()
+
+    # Mask: only the bottom-right watermark zone
+    mask = Image.new("L", (tw, th), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle([int(tw * 0.82), int(th * 0.90), tw, th], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=6))
+
+    with torch.inference_mode():
+        result = inpaint_pipe(
+            prompt="matching background texture, seamless, clean, professional",
+            negative_prompt="text, logo, watermark, blurry, distorted",
+            image=working,
+            mask_image=mask,
+            num_inference_steps=20,
+            strength=0.95,
+            height=th,
+            width=tw,
+        ).images[0]
+
+    # Resize back to original if needed
+    if (tw, th) != (w, h):
+        result = result.resize((w, h), Image.LANCZOS)
+    return result
+
+
     image_np = np.array(image)
     image_np = cv2.Canny(image_np, 100, 200)
     image_np = image_np[:, :, None]
@@ -181,7 +222,7 @@ async def style_image(request: StylingRequest):
     start_time = time.time()
     try:
         # 1. Download and Prepare
-        init_image = download_image(request.image_url)
+        init_image = await download_image(request.image_url)
         logger.info(f"[{request_id}] Downloaded image. Original size: {init_image.size}")
 
         init_image = init_image.resize((512, 512))
@@ -217,7 +258,7 @@ async def style_image(request: StylingRequest):
             target_key = request.target_path
 
         logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
-        result_url = upload_image(stylized_image, target_key)
+        result_url = await upload_image(stylized_image, target_key)
 
         duration = time.time() - start_time
         logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
@@ -238,32 +279,9 @@ async def clean_watermark(request: CleanRequest):
     logger.info(f"[{request_id}] Received watermark cleaning request for: {request.image_url}")
     start_time = time.time()
     try:
-        # 1. Download
-        init_image = download_image(request.image_url)
-        w, h = init_image.size
+        init_image = await download_image(request.image_url)
+        logger.info(f"[{request_id}] Image size: {init_image.size}")
 
-        # 2. Crop 1024x1024 bottom right corner for context to retain native resolution
-        crop_size = min(w, h, 1024)
-        left = w - crop_size
-        top = h - crop_size
-        crop_image = init_image.crop((left, top, w, h)).resize((1024, 1024), Image.LANCZOS)
-
-        # Create Mask relative to the crop
-        mask = Image.new("L", (1024, 1024), 0)
-        from PIL import ImageDraw, ImageFilter
-        draw = ImageDraw.Draw(mask)
-        
-        # Original watermark was w * 0.82 and h * 0.90. We map those to our 1024x1024 crop
-        orig_x1, orig_y1 = w * 0.82, h * 0.90
-        local_x1 = int(((orig_x1 - left) / crop_size) * 1024)
-        local_y1 = int(((orig_y1 - top) / crop_size) * 1024)
-        
-        # Draw NotebookLM zone
-        draw.rectangle([max(0, local_x1), max(0, local_y1), 1024, 1024], fill=255)
-        mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
-
-        # 3. Setup Inpaint Pipeline (Regular SDXL Inpaint, no ControlNet needed for this)
-        # We initialize it with components to share VRAM without relying on from_pipe
         inpaint_pipe = StableDiffusionXLInpaintPipeline(
             vae=pipe.vae,
             text_encoder=pipe.text_encoder,
@@ -273,61 +291,27 @@ async def clean_watermark(request: CleanRequest):
             unet=pipe.unet,
             scheduler=pipe.scheduler,
             force_zeros_for_empty_prompt=getattr(pipe.config, "force_zeros_for_empty_prompt", True),
-            add_watermarker=getattr(pipe, "add_watermarker", None)
+            add_watermarker=False,
         )
-        if DEVICE != "cuda":
-            inpaint_pipe.to(DEVICE)
-        else:
-            inpaint_pipe.enable_model_cpu_offload()
+        inpaint_pipe.enable_model_cpu_offload() if DEVICE == "cuda" else inpaint_pipe.to(DEVICE)
 
-        # 4. Run Inference
-        logger.info(f"[{request_id}] Starting Inpaint for watermark cleaning on 1024x1024 crop...")
-        with torch.inference_mode():
-            images = inpaint_pipe(
-                prompt="matching background texture, seamless, clean, professional high quality",
-                negative_prompt="text, logo, blurry, distorted, watermark",
-                image=crop_image,
-                mask_image=mask,
-                num_inference_steps=20,
-                strength=0.95
-            ).images
+        cleaned_image = inpaint_bottom_right(inpaint_pipe, init_image)
 
-        cleaned_crop = images[0]
-        
-        # 5. Paste the cleaned crop back onto the original native resolution image
-        cleaned_crop_resized = cleaned_crop.resize((crop_size, crop_size), Image.LANCZOS)
-        final_image = init_image.copy()
-        final_image.paste(cleaned_crop_resized, (left, top))
-        cleaned_image = final_image
-
-        # 5. Upload result or save locally
         if request.target_path and request.target_path.startswith("/"):
             os.makedirs(os.path.dirname(request.target_path), exist_ok=True)
-            cleaned_image.save(request.target_path, quality=90)
+            cleaned_image.save(request.target_path, format="PNG")
             result_url = f"file://{request.target_path}"
             target_key = request.target_path
-            logger.info(f"[{request_id}] Saved locally: {request.target_path}")
         else:
-            if not request.target_path:
-                filename = f"cleaned_{uuid_pkg.uuid4()}.jpg"
-                target_key = f"cleaned/{filename}"
-            else:
-                target_key = request.target_path
-            logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
-            result_url = upload_image(cleaned_image, target_key)
-
+            target_key = request.target_path or f"cleaned/{uuid_pkg.uuid4()}.png"
+            result_url = await upload_image(cleaned_image, target_key)
 
         duration = time.time() - start_time
-        logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
-
-        return {
-            "status": "success",
-            "url": result_url,
-            "target": target_key
-        }
+        logger.info(f"[{request_id}] Done in {duration:.2f}s. Result: {result_url}")
+        return {"status": "success", "url": result_url, "target": target_key}
 
     except Exception as e:
-        logger.error(f"[{request_id}] Error during watermark cleaning: {str(e)}", exc_info=True)
+        logger.error(f"[{request_id}] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/clean_video_watermark")
@@ -341,7 +325,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
         # 1. Download Video
         video_path = f"{tmp_dir}/input.mp4"
         logger.info(f"[{request_id}] Downloading video to {video_path}...")
-        download_video(request.video_url, video_path)
+        await download_video(request.video_url, video_path)
 
         if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
             raise Exception(f"Video download failed or file empty: {video_path}")
@@ -406,15 +390,15 @@ async def clean_video_watermark(request: VideoCleanRequest):
         if frame_count == 0:
             raise Exception("Fatal: Failed to recover any frames from video source.")
 
-        # 3. STAGE 2: Upload ALL Raw Frames to S3 (Persist raw data before processing)
+        # 3. STAGE 2: Upload ALL Raw Frames to S3 concurrently
         logger.info(f"[{request_id}] Uploading {frame_count} raw frames to S3 (raw_frames/{request_id}/)...")
-        for i in range(1, frame_count + 1):
+        async def _upload_frame(i: int):
             filename = f"frame_{i:04d}.jpg"
-            local_path = f"{raw_frames_dir}/{filename}"
             s3_key = f"raw_frames/{request_id}/{filename}"
-            s3_client.upload_file(local_path, S3_BUCKET, s3_key)
-            if i % 100 == 0:
-                logger.debug(f"[{request_id}] Uploaded {i}/{frame_count} raw frames...")
+            async with _s3_client() as s3:
+                await s3.upload_file(f"{raw_frames_dir}/{filename}", S3_BUCKET, s3_key)
+
+        await asyncio.gather(*[_upload_frame(i) for i in range(1, frame_count + 1)])
         logger.info(f"[{request_id}] All raw frames successfully pushed to S3.")
 
         # 4. Setup Inpaint Pipeline (After extraction and upload are confirmed)
@@ -435,42 +419,26 @@ async def clean_video_watermark(request: VideoCleanRequest):
         logger.info(f"[{request_id}] Pipeline ready (Dtype: {inpaint_pipe.dtype}, Device: {inpaint_pipe.device}). Starting watermark removal...")
 
         # 5. Process each frame (Downloading back from S3 as requested)
-        from PIL import ImageDraw, ImageFilter
         for i in range(1, frame_count + 1):
             filename = f"frame_{i:04d}.jpg"
             s3_key = f"raw_frames/{request_id}/{filename}"
             local_raw_path = f"{tmp_dir}/s3_downloaded_{filename}"
 
             # Pull from S3
-            s3_client.download_file(S3_BUCKET, s3_key, local_raw_path)
+            async with _s3_client() as s3:
+                await s3.download_file(S3_BUCKET, s3_key, local_raw_path)
 
             if i % 10 == 0 or i == 1:
                 logger.info(f"[{request_id}] Processing frame {i}/{frame_count} (Downloaded from S3)...")
 
             # Load frame and prepare
             init_image = Image.open(local_raw_path).convert("RGB")
-            w, h = init_image.size
 
-            # Create Mask
-            mask = Image.new("L", (w, h), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.rectangle([w * 0.82, h * 0.90, w, h], fill=255)
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=5))
+            final_frame = inpaint_bottom_right(inpaint_pipe, init_image)
 
-            # Inpaint
-            with torch.inference_mode():
-                result = inpaint_pipe(
-                    prompt="matching background texture, seamless, clean, white background",
-                    negative_prompt="text, logo, blurry, distorted, watermark",
-                    image=init_image,
-                    mask_image=mask,
-                    num_inference_steps=15,
-                    strength=1.0
-                ).images[0]
-
-            # Save cleaned frame
-            frame_output_filename = f"{cleaned_dir}/frame_{i:04d}.jpg"
-            result.save(frame_output_filename, quality=90)
+            # Save cleaned frame (PNG pour éviter la compression JPEG)
+            frame_output_filename = f"{cleaned_dir}/frame_{i:04d}.png"
+            final_frame.save(frame_output_filename, format="PNG")
 
             # Cleanup downloaded raw frame to save disk
             if os.path.exists(local_raw_path):
@@ -481,9 +449,9 @@ async def clean_video_watermark(request: VideoCleanRequest):
         logger.info(f"[{request_id}] Re-assembling video with FFmpeg...")
         assemble_cmd = [
             "ffmpeg", "-y", "-framerate", str(fps),
-            "-i", f"{cleaned_dir}/frame_%04d.jpg",
+            "-i", f"{cleaned_dir}/frame_%04d.png",
             "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            "-crf", "23", # Good balance of quality/size
+            "-crf", "18",
             output_video
         ]
         subprocess.run(assemble_cmd, check=True, capture_output=True)
@@ -496,7 +464,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
             target_key = request.target_path
 
         logger.info(f"[{request_id}] Uploading final video to S3: {target_key}")
-        result_url = upload_video(output_video, target_key)
+        result_url = await upload_video(output_video, target_key)
 
         duration = time.time() - start_time
         logger.info(f"[{request_id}] Video cleaning finished in {duration:.2f}s. Result: {result_url}")
@@ -523,8 +491,8 @@ async def inpaint_image(request: InpaintRequest):
     start_time = time.time()
     try:
         # 1. Download and Prepare
-        init_image = download_image(request.image_url).resize((1024, 1024))
-        mask_image = download_image(request.mask_url).resize((1024, 1024))
+        init_image = (await download_image(request.image_url)).resize((1024, 1024))
+        mask_image = (await download_image(request.mask_url)).resize((1024, 1024))
 
         # Extract Canny edges for structural preservation
         control_image = get_canny_image(init_image)
@@ -575,7 +543,7 @@ async def inpaint_image(request: InpaintRequest):
             target_key = request.target_path
 
         logger.info(f"[{request_id}] Uploading result to S3: {target_key}")
-        result_url = upload_image(inpainted_image, target_key)
+        result_url = await upload_image(inpainted_image, target_key)
 
         duration = time.time() - start_time
         logger.info(f"[{request_id}] Request finished in {duration:.2f}s. Result: {result_url}")
