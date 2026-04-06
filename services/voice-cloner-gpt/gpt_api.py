@@ -3,8 +3,8 @@ import os
 
 # Paths within the container
 GSV_PATH = "/app"
-SOVITS_WEIGHTS = "/app/pretrained_models/gsv-v2final-pretrained/s2G488k.pth"
-GPT_WEIGHTS = "/app/pretrained_models/gsv-v2final-pretrained/s1v2.ckpt"
+SOVITS_WEIGHTS = "/app/GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/s2G2333k.pth"
+GPT_WEIGHTS = "/app/GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt"
 REF_WAV = "/app/reference/Mon_enregistrement_1.wav"
 REF_TEXT = "Aujourd'hui, j'explore de nouveaux horizons avec l'intelligence artificielle. Est-ce que tu te rends compte de la précision nécessaire ? Chaque mot compte, chaque silence apporte du relief. J'articule avec soi pour que ma signature vocale soit parfaitement capturée. C'est un exercice fascinant ? N'est-ce pas ?"
 REF_LANG = "fr"
@@ -17,7 +17,6 @@ def run_api():
         "-dr", REF_WAV,
         "-dt", REF_TEXT,
         "-dl", REF_LANG,
-        "-v", "v2",
         "-a", "0.0.0.0",
         "-p", "9880"
     ]

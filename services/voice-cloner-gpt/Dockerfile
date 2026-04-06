@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     sed -i '/transformers/d; /peft/d' requirements.txt && \
     pip uninstall -y torchaudio && \
     pip install torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
-    pip install "transformers>=4.45.0" "peft>=0.12.0" && \
+    pip install "transformers>=4.45.0,<5.0" "peft>=0.12.0" "huggingface_hub<0.24" && \
     pip install -r requirements.txt \
     fastapi \
     uvicorn \
@@ -34,7 +34,22 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     x-transformers \
     f5-tts
 
-# 4. Final step: Copy my API wrapper
+# 4. Download pretrained models
+RUN pip install "huggingface_hub>=0.24" && \
+    huggingface-cli download lj1995/GPT-SoVITS \
+        chinese-roberta-wwm-ext-large/config.json \
+        chinese-roberta-wwm-ext-large/tokenizer.json \
+        chinese-roberta-wwm-ext-large/pytorch_model.bin \
+        chinese-hubert-base/config.json \
+        chinese-hubert-base/preprocessor_config.json \
+        chinese-hubert-base/pytorch_model.bin \
+        gsv-v2final-pretrained/s2G2333k.pth \
+        gsv-v2final-pretrained/s2D2333k.pth \
+        gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt \
+        --local-dir /app/GPT_SoVITS/pretrained_models && \
+    pip install "huggingface_hub<0.24"
+
+# 5. Final step: Copy my API wrapper
 COPY gpt_api.py .
 
 # Models will be mounted as volumes
