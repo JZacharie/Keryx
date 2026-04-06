@@ -31,6 +31,7 @@ S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 MODEL_ID = os.getenv("MODEL_ID", "stabilityai/stable-video-diffusion-img2vid-xt-1-1")
+HF_TOKEN = os.getenv("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Loading Animation Pipeline on {DEVICE}...")
@@ -40,7 +41,8 @@ torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32
 pipe = StableVideoDiffusionPipeline.from_pretrained(
     MODEL_ID,
     torch_dtype=torch_dtype,
-    variant="fp16" if DEVICE == "cuda" else None
+    variant="fp16" if DEVICE == "cuda" else None,
+    token=HF_TOKEN
 )
 
 if DEVICE == "cuda":

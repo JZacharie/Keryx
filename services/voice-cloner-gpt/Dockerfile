@@ -29,7 +29,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     requests \
     transformers==4.43.0 \
     dm-tree>=0.1.8 \
-    jax>=0.4.1
+    jax>=0.4.1 \
+    x-transformers \
+    f5-tts
 
 # 4. Final step: Copy my API wrapper
 COPY gpt_api.py .

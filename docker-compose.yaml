@@ -78,6 +78,7 @@ services:
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin # pragma: allowlist secret
       - S3_BUCKET=keryx
+      - HF_TOKEN=${HF_TOKEN:-}
     depends_on:
       minio:
         condition: service_healthy
