@@ -3,6 +3,7 @@ version: '3.8'
 services:
   minio:
     image: minio/minio:latest
+    container_name: keryx-minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -15,10 +16,55 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    volumes:
+      - keryx-minio-data:/data
+
+  # High-quality voice cloning (GPT-SoVITS)
+  voice-cloner:
+    build:
+      context: ./services/voice-cloner-gpt
+      dockerfile: Dockerfile
+    container_name: keryx-voice-cloner
+    ports:
+      - "9880:9880"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - sovits-models:/app/pretrained_models
+      # Reference audio
+      - ./Joseph.wav:/app/reference/Joseph.wav:ro
+      # Model cache mount (persistent)
+      - voice-cloner-cache:/root/.cache
+
+  # Alternative voice cloning (Coqui/General)
+  voice-cloner-coqui:
+    build:
+      context: ./services/voice-cloner
+    container_name: keryx-voice-cloner-coqui
+    ports:
+      - "9881:9880" # Mapping to 9881 to avoid conflict
+    environment:
+      - S3_ENDPOINT=http://minio:9000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - coqui-models:/root/.local/share/tts
+      - .:/app/host
 
   diffusion-engine:
     build:
       context: ./services/diffusion-engine
+    container_name: keryx-diffusion-engine
     ports:
       - "8000:8000"
     environment:
@@ -26,7 +72,7 @@ services:
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin # pragma: allowlist secret
       - S3_BUCKET=keryx
-      - MODEL_ID=stabilityai/sdxl-turbo # or a lightweight one for testing
+      - MODEL_ID=stabilityai/sdxl-turbo
     deploy:
       resources:
         reservations:
@@ -40,11 +86,12 @@ services:
     volumes:
       - keryx-cache:/app/.cache
       - ./outputs:/app/outputs
-      - .:/app/host
+      - .:/app/host:ro
 
   wan2gp:
     build:
       context: ./services/wan2gp
+    container_name: keryx-wan2gp
     ports:
       - "8001:8001"
     environment:
@@ -67,14 +114,14 @@ services:
       - ./outputs:/app/outputs
       - .:/app/host
 
-  voice-cloner:
-    image: keryx-voice-cloner:latest
+  video-processor:
     build:
-      context: ./services/voice-cloner
-    ports:
-      - "9880:9880"
+      context: ./services/video-processor
+      dockerfile: Dockerfile
+    container_name: keryx-video-processor
     environment:
-      - S3_ENDPOINT=http://minio:9000
+      - VOICE_CLONER_URL=http://voice-cloner:9880
+      - DIFFUSION_ENGINE_URL=http://diffusion-engine:8000
     deploy:
       resources:
         reservations:
@@ -83,9 +130,21 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - coqui-models:/root/.local/share/tts
-      - .:/app/host
+      - .:/app/host:ro
+      - ./outputs:/app/outputs
+      - whisper-cache:/app/whisper_models
+      - hf-cache:/app/huggingface
+    depends_on:
+      voice-cloner:
+        condition: service_started
+      diffusion-engine:
+        condition: service_started
 
 volumes:
+  keryx-minio-data:
+  voice-cloner-cache:
+  whisper-cache:
+  hf-cache:
   keryx-cache:
+  sovits-models:
   coqui-models:
