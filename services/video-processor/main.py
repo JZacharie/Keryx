@@ -243,10 +243,35 @@ def main():
     # 2. Extract keyframes via scene detection (independent of transcription)
     extract_keyframes_scene(video_path, kf_folder)
 
-    # 3. Clean watermarks on all extracted frames
+    # 3. Clean watermarks → nouveau dossier séparé
+    kf_clean_folder = "/app/outputs/keyframes/industrializing_clean/"
+    os.makedirs(kf_clean_folder, exist_ok=True)
     files = sorted([f for f in os.listdir(kf_folder) if f.endswith('.jpg') or f.endswith('.png')])
-    for filename in files:
-        clean_watermark_local(os.path.join(kf_folder, filename))
+    total = len(files) - 2
+    cleaned = 0
+    for i, filename in enumerate(files):
+        src = os.path.join(kf_folder, filename)
+        dst = os.path.join(kf_clean_folder, filename)
+        if i == 0 or i == len(files) - 1:
+            print(f"[Watermark] Copying {filename} as-is (first/last)")
+            import shutil
+            shutil.copy2(src, dst)
+            continue
+        cleaned += 1
+        print(f"[Watermark] {cleaned}/{total} - Cleaning {filename}...")
+        payload = {"image_url": src, "target_path": dst}
+        try:
+            r = requests.post(f"{DIFFUSION_ENGINE_URL}/clean_watermark", json=payload, timeout=600)
+            if r.status_code == 200:
+                print(f"[Watermark] {cleaned}/{total} - Done {filename}")
+            else:
+                print(f"[Watermark] {cleaned}/{total} - Error {r.status_code}: {r.text}, copying original")
+                import shutil
+                shutil.copy2(src, dst)
+        except Exception as e:
+            print(f"[Watermark] {cleaned}/{total} - Exception: {e}, copying original")
+            import shutil
+            shutil.copy2(src, dst)
 
     # 4. Transcribe
     transcript = transcribe_audio(audio_path, language="en")
@@ -266,7 +291,7 @@ def main():
     with open("/app/outputs/transcripts/manifest.json", "w") as f:
         json.dump(segments, f, indent=2)
 
-    assemble_video(segments, kf_folder, 'fr', "/app/outputs/revoiced/industrializing_fr.mp4")
+    assemble_video(segments, kf_clean_folder, 'fr', "/app/outputs/revoiced/industrializing_fr.mp4")
 
 if __name__ == "__main__":
     main()
