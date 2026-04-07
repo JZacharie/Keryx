@@ -22,17 +22,23 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ffmpeg \
     git
 
-# 2. Upgrade pip, setuptools and wheel + set up cache for pip
+# 2. Upgrade pip and install heavy AI dependencies first (these change rarely)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip setuptools wheel
+    pip install --upgrade pip setuptools wheel && \
+    pip install \
+    torch==2.2.1 \
+    diffusers==0.26.3 \
+    transformers==4.38.2 \
+    accelerate==0.27.2 \
+    opencv-python-headless==4.9.0.80
 
-# 3. Handle Python dependencies
+# 3. Handle remaining Python dependencies
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# 4. Final step: Copy the application code
-COPY . .
+# 4. Final step: Copy only the application code
+COPY main.py .
 
 # Create cache directories and set permissions
 RUN mkdir -p $HF_HOME $XDG_CACHE_HOME && \
