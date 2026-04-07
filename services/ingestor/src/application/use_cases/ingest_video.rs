@@ -168,22 +168,18 @@ impl IngestVideoUseCase {
 
             let original_text = slide_text.join(" ");
 
-                // 7. Translate
-                tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, total_slides);
+            // 7. Translate & Style
+            for lang in &job.target_langs {
+                tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{} (lang: {})", job_id, i+1, total_slides, lang);
                 
                 // Dynamic Scaling: Scale up Ollama
                 self.scaling_repo.scale_up("ollama", "ollama").await?;
                 let translated = self.translator.translate(&original_text, lang).await?;
-                tracing::debug!("[Job {}] Translated text for lang {}: {}", job_id, lang, translated);
 
                 // 8. Style Image
                 let style_prompt = &job.style_config.prompt;
-                tracing::info!("[Job {}] Requesting restyle for frame {} (lang: {})", job_id, slide.slide_index, lang);
-                
-                // Diffusion was already scaled up for cleaning, but we ensure it's up
                 self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
                 let styled_url = self.stylizer.style_image(&slide.original_frame, style_prompt).await?;
-                tracing::debug!("[Job {}] Styled frame {} available at: {}", job_id, slide.slide_index, styled_url);
 
                 slide.translations.insert(lang.clone(), TranslationAsset {
                     text: translated,
