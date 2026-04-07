@@ -37,8 +37,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 4. Final step: Copy only the application code
 COPY main.py .
 
-# Ensure cache directories exist
-RUN mkdir -p $HF_HOME $WHISPER_CACHE /app/outputs
+# Add non-root user
+RUN useradd -m keryx && chown -R keryx:keryx /app
+USER keryx
 
 # Add command to run the processor
 CMD ["python", "main.py"]

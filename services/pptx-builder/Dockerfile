@@ -7,5 +7,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # 2. Copy application code
 COPY main.py .
+# Add non-root user
+RUN useradd -m keryx && chown -R keryx:keryx /app
+USER keryx
+
 EXPOSE 8002
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

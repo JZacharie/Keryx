@@ -32,10 +32,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 4. Final step: Copy only the application code
 COPY main.py .
 
-# Ensure HF_HOME exists and is writeable
-RUN mkdir -p $HF_HOME
+# Add non-root user
+RUN useradd -m keryx && chown -R keryx:keryx /app
+USER keryx
 
 EXPOSE 8001
-
-# Run with uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

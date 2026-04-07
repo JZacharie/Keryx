@@ -20,12 +20,9 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Create directory for models
-RUN mkdir -p /root/.local/share/tts
-
-# Final step: Copy only the application code
-COPY api.py .
+# Add non-root user
+RUN useradd -m keryx && chown -R keryx:keryx /app
+USER keryx
 
 EXPOSE 9880
-
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "9880"]
