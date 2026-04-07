@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use anyhow::Result;
 use std::path::PathBuf;
 use opencv::{
@@ -23,7 +24,7 @@ impl OpenCvAnalyzer {
 #[async_trait]
 impl VideoAnalyzer for OpenCvAnalyzer {
     async fn detect_slides(&self, video_path: &PathBuf) -> Result<Vec<(u32, f64, PathBuf)>> {
-        let mut cap = VideoCapture::from_file(video_path.to_str().unwrap(), CAP_ANY)?;
+        let cap = VideoCapture::from_file(video_path.to_str().unwrap(), CAP_ANY)?;
         if !cap.is_opened()? {
             return Err(anyhow::anyhow!("Could not open video file"));
         }
