@@ -43,8 +43,8 @@ impl ScalingRepository for KubeScalingRepository {
             let d = deployments.get(deployment_name).await?;
             if let Some(status) = d.status {
                 if status.ready_replicas.unwrap_or(0) >= 1 {
-                    tracing::info!("Deployment {}/{} is ready!", namespace, deployment_name);
-                    sleep(Duration::from_secs(7)).await;
+                    tracing::info!("Deployment {}/{} is ready! Waiting extra 20s for ML service initialization...", namespace, deployment_name);
+                    sleep(Duration::from_secs(20)).await;
                     return Ok(());
                 }
             }
