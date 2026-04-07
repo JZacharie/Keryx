@@ -229,4 +229,3 @@ impl IngestVideoUseCase {
         Ok(())
     }
 }
-}
