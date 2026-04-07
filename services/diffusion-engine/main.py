@@ -188,30 +188,64 @@ def get_canny_image(image: Image.Image, low_threshold: int = 100, high_threshold
 
 def remove_notebooklm_watermark(image: Image.Image) -> Image.Image:
     """
-    Surgical removal of the NotebookLM logo (bottom-right corner only).
-    Samples the background color column-by-column just above the logo zone 
-    and extends it downwards. This preserves horizontal gradients.
+    Advanced watermark removal inspired by Albonire's notebooklm-watermark-remover.
+    Uses median blur difference to build a precise mask and OpenCV inpainting
+    to fill the region. Surrounding textures are preserved.
     """
-    from PIL import ImageDraw
-    
-    img = image.copy().convert("RGB")
-    w, h = img.size
+    # Convert PIL to BGR (OpenCV)
+    img_bgr = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+    h, w = img_bgr.shape[:2]
 
-    # Logo bounding box (approximate zone for NotebookLM)
-    x1, y1 = int(w * 0.80), int(h * 0.91)
+    # 1. Define Search ROI (Bottom-Right)
+    # Search in the bottom 10% and right 25% of the image
+    mx, my = int(w * 0.25), int(h * 0.10)
+    y0, x0 = h - my, w - mx
+    roi = img_bgr[y0:h, x0:w].copy()
 
-    draw = ImageDraw.Draw(img)
+    # 2. Build Watermark Mask (Median Blur Difference)
+    # This detects sharp features that differ from the local background
+    rh, rw = roi.shape[:2]
+    if rh < 5 or rw < 5:
+        return image
+
+    ksize = max(11, min(31, (min(rh, rw) // 6) | 1))
+    background = cv2.medianBlur(roi, ksize)
+    diff_gray = cv2.cvtColor(cv2.absdiff(roi, background), cv2.COLOR_BGR2GRAY)
     
-    # Process each column in the watermark zone
-    for x in range(x1, w):
-        # Sample color from 5 pixels above the watermark zone to avoid edge artifacts
-        sample_y = max(0, y1 - 5)
-        color = img.getpixel((x, sample_y))
+    # Threshold to isolate the watermark glyphs
+    _, binary = cv2.threshold(diff_gray, 30, 255, cv2.THRESH_BINARY)
+
+    # Filter by Connected Components (ensure it's actually a logo, not random noise)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
+    mask = np.zeros((rh, rw), dtype=np.uint8)
+    
+    found_watermark = False
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        # Skip tiny noise or massive borders
+        if area < 100 or area > (rh * rw * 0.5):
+            continue
         
-        # Draw a vertical line to fill the watermark area for this specific column
-        draw.line([(x, y1), (x, h)], fill=color, width=1)
-        
-    return img
+        # Draw component pixels on mask
+        mask[labels == i] = 255
+        found_watermark = True
+
+    if not found_watermark:
+        logger.info("No watermark components detected in ROI, skipping reconstruction.")
+        return image
+
+    # 3. Dilate Mask to catch anti-aliasing
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask = cv2.dilate(mask, kernel, iterations=2)
+
+    # 4. Inpaint the ROI
+    cleaned_roi = cv2.inpaint(roi, mask, 3, cv2.INPAINT_TELEA)
+
+    # 5. Paste back into original image
+    img_bgr[y0:h, x0:w] = cleaned_roi
+
+    # Convert back to PIL RGB
+    return Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
 
 
 def remove_background(image: Image.Image) -> Image.Image:
