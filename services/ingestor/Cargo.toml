@@ -39,7 +39,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 
 # Computer Vision
-opencv = { version = "0.93", default-features = false, features = ["videoio", "imgproc", "imgcodecs", "core"] }
+opencv = { version = "0.93", default-features = false, features = ["videoio", "imgproc", "imgcodecs"] }
 
 # Kubernetes control
 kube = { version = "0.96", features = ["runtime", "derive"] }
