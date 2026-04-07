@@ -4,5 +4,5 @@ use std::path::PathBuf;
 
 #[async_trait]
 pub trait VoiceClonerRepository: Send + Sync {
-    async fn clone(&self, text: &str, language: &str, speaker_wav: Option<&str>, target_path: &PathBuf) -> Result<PathBuf>;
+    async fn voice_clone(&self, text: &str, language: &str, speaker_wav: Option<&str>, target_path: &PathBuf) -> Result<PathBuf>;
 }

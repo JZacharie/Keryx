@@ -1,12 +1,11 @@
-use async_trait::async_trait;
-use anyhow::{Result, Context};
-use std::path::{Path, PathBuf};
+use anyhow::Result;
+use std::path::PathBuf;
 use opencv::{
     prelude::*,
     videoio::{VideoCapture, CAP_ANY, CAP_PROP_FRAME_COUNT, CAP_PROP_FPS, CAP_PROP_POS_MSEC},
     imgcodecs,
     imgproc,
-    core::{self, absdiff, sum_elems, Mat, Point, Size},
+    core::{self, absdiff, sum_elems, Mat},
 };
 use crate::domain::ports::video_repository::VideoAnalyzer;
 
@@ -30,7 +29,7 @@ impl VideoAnalyzer for OpenCvAnalyzer {
         }
 
         let total_frames = cap.get(CAP_PROP_FRAME_COUNT)? as i32;
-        let fps = cap.get(CAP_PROP_FPS)?;
+        let _fps = cap.get(CAP_PROP_FPS)?;
         let mut slides = Vec::new();
         let mut prev_frame = Mat::default();
         let mut slide_index = 0;
