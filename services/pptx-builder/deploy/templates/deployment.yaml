@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keryx-pptx-builder
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: keryx-pptx-builder
+  template:
+    metadata:
+      labels:
+        app: keryx-pptx-builder
+    spec:
+      containers:
+        - name: pptx-builder
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8002
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keryx-pptx-builder
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8002
+      protocol: TCP
+      name: http
+  selector:
+    app: keryx-pptx-builder

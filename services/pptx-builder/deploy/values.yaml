@@ -1,0 +1,25 @@
+replicaCount: 0
+
+image:
+  repository: ghcr.io/jzacharie/keryx-pptx-builder
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8002
+
+resources:
+  limits:
+    memory: 2Gi
+    cpu: 1000m
+  requests:
+    memory: 1Gi
+    cpu: 500m
+
+env:
+  S3_ENDPOINT: "https://minio-170-api.zacharie.org"
+  S3_BUCKET: "keryx"
+  AWS_ACCESS_KEY_ID: "REDACTED"
+  AWS_SECRET_ACCESS_KEY: "REDACTED"
