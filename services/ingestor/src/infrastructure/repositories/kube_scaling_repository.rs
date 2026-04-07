@@ -44,7 +44,7 @@ impl ScalingRepository for KubeScalingRepository {
             if let Some(status) = d.status {
                 if status.ready_replicas.unwrap_or(0) >= 1 {
                     tracing::info!("Deployment {}/{} is ready!", namespace, deployment_name);
-                    sleep(Duration::from_secs(2)).await;
+                    sleep(Duration::from_secs(7)).await;
                     return Ok(());
                 }
             }
