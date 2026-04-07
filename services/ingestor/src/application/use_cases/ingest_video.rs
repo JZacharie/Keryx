@@ -12,7 +12,7 @@ use crate::domain::ports::scaling_repository::ScalingRepository;
 use crate::domain::ports::tts_repository::TTSRepository;
 use crate::domain::ports::voice_cloner_repository::VoiceClonerRepository;
 use crate::domain::ports::notification_repository::NotificationRepository;
-use crate::domain::entities::job::{JobStatus, SlideAsset, TranslationAsset};
+use crate::domain::entities::job::JobStatus;
 
 pub struct IngestVideoUseCase {
     job_repo: Arc<dyn JobRepository>,
@@ -159,7 +159,7 @@ impl IngestVideoUseCase {
             let jf_seg_path = audio_path.with_file_name(format!("seg_{}_jf.wav", i));
 
             self.tts_repo.generate(&fr_text, "fr", &fr_seg_path).await?;
-            self.voice_cloner_repo.clone(&fr_text, "fr", None, &jf_seg_path).await?;
+            self.voice_cloner_repo.voice_clone(&fr_text, "fr", None, &jf_seg_path).await?;
 
             fr_audio_segments.push(fr_seg_path);
             jf_audio_segments.push(jf_seg_path);

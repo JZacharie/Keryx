@@ -20,7 +20,7 @@ impl CoquiVoiceClonerRepository {
 
 #[async_trait]
 impl VoiceClonerRepository for CoquiVoiceClonerRepository {
-    async fn clone(&self, text: &str, language: &str, speaker_wav: Option<&str>, target_path: &PathBuf) -> Result<PathBuf> {
+    async fn voice_clone(&self, text: &str, language: &str, speaker_wav: Option<&str>, target_path: &PathBuf) -> Result<PathBuf> {
         let mut url = format!("{}?text={}&language={}", self.api_url, text, language);
         if let Some(wav) = speaker_wav {
             url.push_str(&format!("&speaker_wav={}", wav));
