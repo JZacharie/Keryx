@@ -19,6 +19,10 @@ use keryx_ingestor::{
         diffusion_stylizer_repository::DiffusionStylizerRepository,
         pptx_builder_repository::PptxBuilderRepository,
         kube_scaling_repository::KubeScalingRepository,
+        qwen_tts_repository::QwenTTSRepository,
+        coqui_voice_cloner_repository::CoquiVoiceClonerRepository,
+        ffmpeg_reconstructor::FfmpegReconstructor,
+        slack_notification_repository::SlackNotificationRepository,
     },
 };
 use std::path::PathBuf;
@@ -48,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
     let pptx_url = std::env::var("PPTX_URL").unwrap_or_else(|_| "http://keryx-pptx-builder:8002".to_string());
     let tts_url = std::env::var("TTS_URL").unwrap_or_else(|_| "http://qwen3-tts.qwen-tts.svc.cluster.local:7860".to_string());
     let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://voice-cloner.keryx.svc.cluster.local:9880".to_string());
+    let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)?;
@@ -65,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
     let tts_repo = Arc::new(QwenTTSRepository::new(tts_url));
     let voice_cloner_repo = Arc::new(CoquiVoiceClonerRepository::new(voice_cloner_url));
     let reconstructor = Arc::new(FfmpegReconstructor::new());
+    let notification_repo = Arc::new(SlackNotificationRepository::new(slack_webhook));
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -80,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         tts_repo,
         voice_cloner_repo,
         reconstructor,
+        notification_repo,
     ));
 
     // Initialize state

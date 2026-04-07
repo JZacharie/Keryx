@@ -8,6 +8,7 @@ pub mod pptx_builder_repository;
 pub mod qwen_tts_repository;
 pub mod coqui_voice_cloner_repository;
 pub mod redis_job_repository;
+pub mod slack_notification_repository;
 pub mod s3_storage_repository;
 pub mod whisper_stt_repository;
 pub mod yt_dlp_repository;
