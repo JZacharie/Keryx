@@ -24,18 +24,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libopencv-dev \
     python3-opencv
 
-# 2. Upgrade pip and set up cache for pip
+# 2. Upgrade pip and install heavy AI dependencies first (rarely change)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip
+    pip install --upgrade pip && \
+    pip install torch transformers openai-whisper opencv-python
 
-# 3. Handle Python dependencies
+# 3. Handle remaining Python dependencies
 COPY requirements.txt .
-
-# Install dependencies using the BuildKit cache mount
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# 4. Final step: Copy the application code
+# 4. Final step: Copy only the application code
 COPY main.py .
 
 # Ensure cache directories exist

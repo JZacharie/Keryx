@@ -11,19 +11,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ffmpeg \
     libsndfile1
 
-# Install Coqui TTS and other dependencies with pip cache
+# Install heavy TTS dependencies first (rarely change)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install \
-    TTS \
-    "transformers<4.40" \
-    fastapi \
-    uvicorn \
-    python-multipart
+    pip install "transformers<4.40" "TTS>=0.22.0"
+
+# Install remaining dependencies
+COPY requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # Create directory for models
 RUN mkdir -p /root/.local/share/tts
 
-# Simple FastAPI wrapper for XTTS v2
+# Final step: Copy only the application code
 COPY api.py .
 
 EXPOSE 9880

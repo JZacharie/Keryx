@@ -19,22 +19,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ffmpeg \
     git
 
-# 2. Upgrade pip and set up cache for pip
+# 2. Upgrade pip and install heavy AI dependencies first (rarely change)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip
+    pip install --upgrade pip && \
+    pip install torch transformers diffusers accelerate
 
-# 3. Handle Python dependencies
-# Copy requirements first to leverage Docker layer caching
+# 3. Handle remaining Python dependencies
 COPY requirements.txt .
-
-# Install dependencies using the BuildKit cache mount
-# Even if requirements.txt changes, it will reuse already downloaded wheels
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# 4. Final step: Copy the application code
-# This layer will be rebuilt quickly on every code change
-COPY . .
+# 4. Final step: Copy only the application code
+COPY main.py .
 
 # Ensure HF_HOME exists and is writeable
 RUN mkdir -p $HF_HOME
