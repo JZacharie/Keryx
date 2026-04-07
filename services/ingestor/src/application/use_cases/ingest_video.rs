@@ -91,6 +91,7 @@ impl IngestVideoUseCase {
 
         // Scale up Diffusion ONCE for the cleaning phase
         self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
+        self.scaling_repo.wait_for_service_ping("keryx-diffusion-engine").await?;
         
         for (index, timestamp, frame_path) in slides {
             let frame_remote = format!("jobs/{}/raw/frame_{:04}.jpg", job_id, index);
@@ -123,6 +124,7 @@ impl IngestVideoUseCase {
         }).collect();
         
         self.scaling_repo.scale_up("keryx", "keryx-pptx-builder").await?;
+        self.scaling_repo.wait_for_service_ping("keryx-pptx-builder").await?;
         let pptx_url = self.pptx_repo.build(&job_id.to_string(), pptx_slides).await?;
         self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await?;
         
@@ -131,6 +133,12 @@ impl IngestVideoUseCase {
         // 6. Transcribe
         tracing::info!("[Job {}] Phase 4: Transcribing audio...", job_id);
         self.scaling_repo.scale_up("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
+        // Whisper listens on DIFFERENT port in URL, but let's assume service port 80?
+        // Wait! whisper_url in main.rs is http://192.168.0.194:9000.
+        // I'll use the service DNS if possible or just rely on deep ping in repo.
+        // Actually, let's skip ping for Whisper/Ollama if they use external IPs?
+        // No, they are internal to cluster.
+        self.scaling_repo.wait_for_service_ping("openai-whisper-asr-webservice.openai-whisper-asr-webservice.svc.cluster.local:9000").await?;
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
         self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
         
@@ -172,7 +180,9 @@ impl IngestVideoUseCase {
         
         // Scale up for translation/re-styling phase
         self.scaling_repo.scale_up("ollama", "ollama").await?;
+        self.scaling_repo.wait_for_service_ping("ollama.ollama.svc.cluster.local:11434").await?;
         self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
+        self.scaling_repo.wait_for_service_ping("keryx-diffusion-engine").await?;
 
         for (i, slide) in job.assets_map.iter_mut().enumerate() {
             let (start, next_start) = slide_offsets[i];

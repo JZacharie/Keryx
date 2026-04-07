@@ -64,6 +64,34 @@ impl ScalingRepository for KubeScalingRepository {
         Err(anyhow!("Timeout waiting for deployment {}/{} to be ready", namespace, deployment_name))
     }
 
+    async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        
+        let url = format!("http://{}/health", service_name);
+        let mut attempts = 0;
+        
+        while attempts < 30 {
+            match client.get(&url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    tracing::info!("Service {} responded to health check!", service_name);
+                    return Ok(());
+                }
+                Ok(resp) => {
+                    tracing::debug!("Service {} ping: HTTP {}", service_name, resp.status());
+                }
+                Err(e) => {
+                    tracing::debug!("Service {} ping failed: {}", service_name, e);
+                }
+            }
+            attempts += 1;
+            sleep(Duration::from_secs(2)).await;
+        }
+        
+        Err(anyhow!("Service {} failed to respond to health check after 60s", service_name))
+    }
+
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
         let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
         tracing::info!("Scaling down deployment {}/{} to 0...", namespace, deployment_name);
