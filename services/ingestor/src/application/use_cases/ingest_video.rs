@@ -73,8 +73,8 @@ impl IngestVideoUseCase {
     }
 
     async fn execute_internal(&self, job_id: Uuid) -> Result<()> {
-        let mut job = self.job_repo.find_by_id(job_id).await?
-            .context("Job not found")?;
+        let job = self.job_repo.find_by_id(job_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Job {} not found", job_id))?;
 
         tracing::info!("[Job {}] Starting ingestion for {}", job_id, job.source_url);
 
