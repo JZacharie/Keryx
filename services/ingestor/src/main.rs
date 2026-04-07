@@ -32,6 +32,11 @@ async fn main() -> anyhow::Result<()> {
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
+    // Fix for rustls 0.23: explicitly install crypto provider
+    #[allow(clippy::single_component_path_imports)]
+    use rustls;
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Configuration
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx".to_string());

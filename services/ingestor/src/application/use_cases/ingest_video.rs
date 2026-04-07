@@ -43,6 +43,19 @@ impl IngestVideoUseCase {
     }
 
     pub async fn execute(&self, job_id: Uuid) -> Result<()> {
+        let res = self.execute_internal(job_id).await;
+        
+        // Final Scale Down - Always run regardless of success/fail
+        tracing::info!("[Job {}] Final cleanup: scaling down all AI services", job_id);
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
+        let _ = self.scaling_repo.scale_down("ollama", "ollama").await;
+        let _ = self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
+        
+        res
+    }
+
+    async fn execute_internal(&self, job_id: Uuid) -> Result<()> {
         let mut job = self.job_repo.find_by_id(job_id).await?
             .context("Job not found")?;
 
@@ -72,61 +85,58 @@ impl IngestVideoUseCase {
         let slides = self.analyzer.detect_slides(&video_path).await?;
         tracing::info!("[Job {}] Analysis complete. Detected {} slides.", job_id, slides.len());
 
-        // 4. Upload frames, clean watermarks and build job asset map
-        self.job_repo.update_status(job_id, JobStatus::GeneratingVisuals).await?; // Use GeneratingVisuals status for cleaning too
+        // 4. Upload frames and clean watermarks
+        self.job_repo.update_status(job_id, JobStatus::GeneratingVisuals).await?;
         let mut slide_assets = Vec::new();
+
+        // Scale up Diffusion ONCE for the cleaning phase
+        self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
+        
         for (index, timestamp, frame_path) in slides {
             let frame_remote = format!("jobs/{}/raw/frame_{:04}.jpg", job_id, index);
             let frame_url = self.storage_repo.upload_file(&frame_path, &frame_remote).await?;
 
             tracing::info!("[Job {}] Cleaning watermark for slide {}...", job_id, index);
             let clean_remote = format!("jobs/{}/cleaned/frame_{:04}.jpg", job_id, index);
-            
-            // Dynamic Scaling: Scale up Diffusion Engine
-            self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
             let cleaned_url = self.stylizer.clean_watermark(&frame_url, &clean_remote).await?;
 
             slide_assets.push(SlideAsset {
                 slide_index: index,
-                original_frame: cleaned_url, // Use the cleaned frame as the base/original for downstream
+                original_frame: cleaned_url,
                 timestamp,
                 translations: std::collections::HashMap::new(),
             });
         }
+        
+        // Scale down after cleaning
+        self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await?;
 
         job.assets_map = slide_assets;
         job.status = JobStatus::Transcribing;
         self.job_repo.save(&job).await?;
 
-        // 5. Build editable PPTX from cleaned frames
+        // 5. Build editable PPTX
         tracing::info!("[Job {}] Phase 4b: Building PPTX from cleaned slides...", job_id);
         let pptx_slides: Vec<SlideInput> = job.assets_map.iter().map(|s| SlideInput {
             image_url: s.original_frame.clone(),
-            text: String::new(), // transcript will be filled after STT
+            text: String::new(),
         }).collect();
         
-        // Dynamic Scaling: Scale up PPTX Builder
         self.scaling_repo.scale_up("keryx", "keryx-pptx-builder").await?;
         let pptx_url = self.pptx_repo.build(&job_id.to_string(), pptx_slides).await?;
-        
-        // Scale down PPTX Builder after use
         self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await?;
         
         tracing::info!("[Job {}] PPTX available at: {}", job_id, pptx_url);
 
-        // 5. Transcribe
+        // 6. Transcribe
         tracing::info!("[Job {}] Phase 4: Transcribing audio...", job_id);
-        
-        // Dynamic Scaling: Scale up Whisper
         self.scaling_repo.scale_up("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
-        
-        // Scale down Whisper after use
         self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
         
         tracing::info!("[Job {}] Transcription complete. Generated {} segments.", job_id, transcription.segments.len());
 
-        // 6. Generate Sync Metadata
+        // 7. Generate Sync Metadata
         let sync_metadata = serde_json::json!({
             "job_id": job_id.to_string(),
             "source_url": job.source_url,
@@ -152,13 +162,18 @@ impl IngestVideoUseCase {
         let metadata_remote = format!("jobs/{}/sync_metadata.json", job_id);
         self.storage_repo.upload_file(&metadata_path, &metadata_remote).await?;
 
-        // Match transcription segments to slides
+        // 8. Match transcription segments to slides
         let slide_offsets: Vec<(f64, Option<f64>)> = job.assets_map.iter().enumerate().map(|(i, s)| {
             let next = job.assets_map.get(i+1).map(|ns| ns.timestamp);
             (s.timestamp, next)
         }).collect();
 
         let total_slides = job.assets_map.len();
+        
+        // Scale up for translation/re-styling phase
+        self.scaling_repo.scale_up("ollama", "ollama").await?;
+        self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
+
         for (i, slide) in job.assets_map.iter_mut().enumerate() {
             let (start, next_start) = slide_offsets[i];
             let slide_text: Vec<String> = transcription.segments.iter()
@@ -168,17 +183,11 @@ impl IngestVideoUseCase {
 
             let original_text = slide_text.join(" ");
 
-            // 7. Translate & Style
             for lang in &job.target_langs {
-                tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{} (lang: {})", job_id, i+1, total_slides, lang);
-                
-                // Dynamic Scaling: Scale up Ollama
-                self.scaling_repo.scale_up("ollama", "ollama").await?;
+                tracing::info!("[Job {}] Phase 5: Translating slide {}/{} (lang: {})", job_id, i+1, total_slides, lang);
                 let translated = self.translator.translate(&original_text, lang).await?;
 
-                // 8. Style Image
                 let style_prompt = &job.style_config.prompt;
-                self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
                 let styled_url = self.stylizer.style_image(&slide.original_frame, style_prompt).await?;
 
                 slide.translations.insert(lang.clone(), TranslationAsset {
@@ -189,22 +198,20 @@ impl IngestVideoUseCase {
                 });
             }
         }
+        
+        // Scale down after translation/re-styling
+        self.scaling_repo.scale_down("ollama", "ollama").await?;
+        self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await?;
 
-        // 9. Generate S3 Reconstruction Metadata (ffconcat) for video rebuild
+        // 9. Generate Reconstruction Metadata
         tracing::info!("[Job {}] Phase 6: Generating reconstruction metadata...", job_id);
         let mut concat_content = String::from("ffconcat version 1.0\n");
         let last_timestamp = slide_offsets.last().map(|(t, _)| *t).unwrap_or(0.0);
-
-        // We'll estimate the end of the last slide using the transcription segments
         let total_duration = transcription.segments.last().map(|s| s.end).unwrap_or(last_timestamp + 5.0);
 
         for (i, slide) in job.assets_map.iter().enumerate() {
             let (start, next_start) = slide_offsets[i];
             let duration = next_start.unwrap_or(total_duration) - start;
-
-            // Re-format S3 link to be relative if needed, or use full URL
-            // FFmpeg concat expects local or accessible paths.
-            // In a k8s environment, we'll use the S3 URLs or local cache.
             concat_content.push_str(&format!("file '{}'\n", slide.original_frame));
             concat_content.push_str(&format!("duration {:.3}\n", duration));
         }
@@ -215,14 +222,11 @@ impl IngestVideoUseCase {
         let concat_remote = format!("jobs/{}/reconstruct.ffconcat", job_id);
         self.storage_repo.upload_file(&concat_path, &concat_remote).await?;
 
-        tracing::info!("[Job {}] Ingestion and reconstruction metadata complete.", job_id);
-
-        // Final Scale Down of all services
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
-        let _ = self.scaling_repo.scale_down("ollama", "ollama").await;
-        let _ = self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
-
+        job.status = JobStatus::Completed;
+        self.job_repo.save(&job).await?;
+        
+        tracing::info!("[Job {}] Ingestion complete.", job_id);
         Ok(())
     }
+}
 }
