@@ -161,12 +161,52 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
 
+  build-pptx:
+    name: 📄 Build PPTX Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-pptx-builder
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/pptx-builder
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+
   # ============================================================================
   # Phase 4: Continuous Deployment (CD)
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [build-ingestor, build-diffusion]
+    needs: [build-ingestor, build-diffusion, build-pptx]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
@@ -188,6 +228,7 @@ jobs:
         run: |
           kubectl rollout restart deployment keryx-keryx-ingestor -n keryx || echo "Ingestor not found"
           kubectl rollout restart deployment keryx-diffusion-engine -n keryx || echo "Diffusion Engine not found"
+          kubectl rollout restart deployment keryx-pptx-builder -n keryx || echo "PPTX Builder not found"
 
           # Only wait if they exist
           if kubectl get deployment keryx-keryx-ingestor -n keryx; then

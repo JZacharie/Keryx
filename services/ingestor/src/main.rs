@@ -18,12 +18,16 @@ use keryx_ingestor::{
         ollama_translator_repository::OllamaTranslatorRepository,
         diffusion_stylizer_repository::DiffusionStylizerRepository,
         pptx_builder_repository::PptxBuilderRepository,
+        kube_scaling_repository::KubeScalingRepository,
     },
 };
 use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
     tracing_subscriber::fmt::init();
 
     // Configuration
@@ -48,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
     let translator = Arc::new(OllamaTranslatorRepository::new(&ollama_url, "llama3"));
     let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
     let pptx_repo = Arc::new(PptxBuilderRepository::new(pptx_url));
+    let scaling_repo = Arc::new(KubeScalingRepository::new().await?);
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -59,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
         translator,
         stylizer,
         pptx_repo,
+        scaling_repo,
     ));
 
     // Initialize state

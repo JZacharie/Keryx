@@ -8,6 +8,7 @@ use crate::domain::ports::stt_repository::STTRepository;
 use crate::domain::ports::translator_repository::TranslatorRepository;
 use crate::domain::ports::stylizer_repository::StylizerRepository;
 use crate::domain::ports::pptx_repository::{PptxRepository, SlideInput};
+use crate::domain::ports::scaling_repository::ScalingRepository;
 use crate::domain::entities::job::{JobStatus, SlideAsset, TranslationAsset};
 
 pub struct IngestVideoUseCase {
@@ -19,6 +20,7 @@ pub struct IngestVideoUseCase {
     translator: Arc<dyn TranslatorRepository>,
     stylizer: Arc<dyn StylizerRepository>,
     pptx_repo: Arc<dyn PptxRepository>,
+    scaling_repo: Arc<dyn ScalingRepository>,
 }
 
 impl IngestVideoUseCase {
@@ -31,8 +33,9 @@ impl IngestVideoUseCase {
         translator: Arc<dyn TranslatorRepository>,
         stylizer: Arc<dyn StylizerRepository>,
         pptx_repo: Arc<dyn PptxRepository>,
+        scaling_repo: Arc<dyn ScalingRepository>,
     ) -> Self {
-        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator, stylizer, pptx_repo }
+        Self { job_repo, storage_repo, downloader, analyzer, stt_repo, translator, stylizer, pptx_repo, scaling_repo }
     }
 
     pub fn get_job_repo(&self) -> Arc<dyn JobRepository> {
@@ -78,6 +81,9 @@ impl IngestVideoUseCase {
 
             tracing::info!("[Job {}] Cleaning watermark for slide {}...", job_id, index);
             let clean_remote = format!("jobs/{}/cleaned/frame_{:04}.jpg", job_id, index);
+            
+            // Dynamic Scaling: Scale up Diffusion Engine
+            self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
             let cleaned_url = self.stylizer.clean_watermark(&frame_url, &clean_remote).await?;
 
             slide_assets.push(SlideAsset {
@@ -98,12 +104,26 @@ impl IngestVideoUseCase {
             image_url: s.original_frame.clone(),
             text: String::new(), // transcript will be filled after STT
         }).collect();
+        
+        // Dynamic Scaling: Scale up PPTX Builder
+        self.scaling_repo.scale_up("keryx", "keryx-pptx-builder").await?;
         let pptx_url = self.pptx_repo.build(&job_id.to_string(), pptx_slides).await?;
+        
+        // Scale down PPTX Builder after use
+        self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await?;
+        
         tracing::info!("[Job {}] PPTX available at: {}", job_id, pptx_url);
 
         // 5. Transcribe
         tracing::info!("[Job {}] Phase 4: Transcribing audio...", job_id);
+        
+        // Dynamic Scaling: Scale up Whisper
+        self.scaling_repo.scale_up("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
+        
+        // Scale down Whisper after use
+        self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await?;
+        
         tracing::info!("[Job {}] Transcription complete. Generated {} segments.", job_id, transcription.segments.len());
 
         // 6. Generate Sync Metadata
@@ -148,15 +168,20 @@ impl IngestVideoUseCase {
 
             let original_text = slide_text.join(" ");
 
-            // 7. Translate
-            tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, total_slides);
-            for lang in &job.target_langs {
+                // 7. Translate
+                tracing::info!("[Job {}] Phase 5: Translating and restyling slide {}/{}", job_id, i+1, total_slides);
+                
+                // Dynamic Scaling: Scale up Ollama
+                self.scaling_repo.scale_up("ollama", "ollama").await?;
                 let translated = self.translator.translate(&original_text, lang).await?;
                 tracing::debug!("[Job {}] Translated text for lang {}: {}", job_id, lang, translated);
 
                 // 8. Style Image
                 let style_prompt = &job.style_config.prompt;
                 tracing::info!("[Job {}] Requesting restyle for frame {} (lang: {})", job_id, slide.slide_index, lang);
+                
+                // Diffusion was already scaled up for cleaning, but we ensure it's up
+                self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
                 let styled_url = self.stylizer.style_image(&slide.original_frame, style_prompt).await?;
                 tracing::debug!("[Job {}] Styled frame {} available at: {}", job_id, slide.slide_index, styled_url);
 
@@ -194,9 +219,13 @@ impl IngestVideoUseCase {
         let concat_remote = format!("jobs/{}/reconstruct.ffconcat", job_id);
         self.storage_repo.upload_file(&concat_path, &concat_remote).await?;
 
-        job.status = JobStatus::Completed; // Set to completed if we're done with extraction and cleaning
-        self.job_repo.save(&job).await?;
         tracing::info!("[Job {}] Ingestion and reconstruction metadata complete.", job_id);
+
+        // Final Scale Down of all services
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
+        let _ = self.scaling_repo.scale_down("ollama", "ollama").await;
+        let _ = self.scaling_repo.scale_down("openai-whisper-asr-webservice", "openai-whisper-asr-webservice").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
 
         Ok(())
     }
