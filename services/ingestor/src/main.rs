@@ -46,6 +46,8 @@ async fn main() -> anyhow::Result<()> {
     let whisper_url = std::env::var("WHISPER_URL").unwrap_or_else(|_| "http://192.168.0.194:9000".to_string());
     let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://192.168.0.191:11434".to_string());
     let pptx_url = std::env::var("PPTX_URL").unwrap_or_else(|_| "http://keryx-pptx-builder:8002".to_string());
+    let tts_url = std::env::var("TTS_URL").unwrap_or_else(|_| "http://qwen3-tts.qwen-tts.svc.cluster.local:7860".to_string());
+    let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://voice-cloner.keryx.svc.cluster.local:9880".to_string());
 
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)?;
@@ -60,6 +62,9 @@ async fn main() -> anyhow::Result<()> {
     let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
     let pptx_repo = Arc::new(PptxBuilderRepository::new(pptx_url));
     let scaling_repo = Arc::new(KubeScalingRepository::new().await?);
+    let tts_repo = Arc::new(QwenTTSRepository::new(tts_url));
+    let voice_cloner_repo = Arc::new(CoquiVoiceClonerRepository::new(voice_cloner_url));
+    let reconstructor = Arc::new(FfmpegReconstructor::new());
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -72,6 +77,9 @@ async fn main() -> anyhow::Result<()> {
         stylizer,
         pptx_repo,
         scaling_repo,
+        tts_repo,
+        voice_cloner_repo,
+        reconstructor,
     ));
 
     // Initialize state
