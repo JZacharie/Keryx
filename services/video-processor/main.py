@@ -227,12 +227,9 @@ def main():
         files = sorted([f for f in os.listdir(kf_folder_ai) if f.endswith('.jpg') or f.endswith('.png')])
         for i, filename in enumerate(files):
             img_path = os.path.join(kf_folder_ai, filename)
-            # Skip first image, systematically delete last image
+            # Skip first image, and skip last image (starops)
             if i > 0 and i < len(files) - 1:
                 clean_watermark_local(img_path)
-            elif i == len(files) - 1:
-                if os.path.exists(img_path):
-                    os.remove(img_path)
 
         # Remove segments mapped to deleted files
         segments = [seg for seg in segments if 'keyframe' in seg and os.path.exists(os.path.join(kf_folder_ai, seg["keyframe"]))]

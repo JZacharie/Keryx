@@ -7,9 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# HuggingFace & Whisper cache directory (mapped to a volume in docker-compose)
-ENV HF_HOME=/app/.cache/huggingface
-ENV XDG_CACHE_HOME=/app/.cache
+# HuggingFace & Whisper cache directory
+ENV HF_HOME=/app/huggingface
+ENV XDG_CACHE_HOME=/app/cache
 
 WORKDIR /app
 
@@ -27,20 +27,18 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel
 
 # 3. Handle Python dependencies
-# Copy requirements first to leverage Docker layer caching
 COPY requirements.txt .
-
-# Install dependencies using the BuildKit cache mount
-# Even if requirements.txt changes, it will reuse already downloaded wheels
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 # 4. Final step: Copy the application code
-# This layer will be rebuilt quickly on every code change
 COPY . .
 
-# Ensure HF_HOME exists and is writeable
-RUN mkdir -p $HF_HOME
+# Create cache directories and set permissions
+RUN mkdir -p $HF_HOME $XDG_CACHE_HOME && \
+    chown -R 1000:1000 /app
+
+USER 1000
 
 EXPOSE 8000
 

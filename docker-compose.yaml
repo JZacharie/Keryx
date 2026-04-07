@@ -32,7 +32,7 @@ services:
       - MODEL_ID=${DIFFUSION_MODEL_ID}
       - HF_TOKEN=${HF_TOKEN}
     volumes:
-      - keryx-cache:/app/.cache
+      - keryx-cache:/app/huggingface
       - ./outputs:/app/outputs
       - .:/app/host:ro
     deploy:

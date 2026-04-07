@@ -49,14 +49,22 @@ def calculate_diff(img1_path, img2_path):
     except Exception as e:
         return float('inf')
 
-def crop_to_target(image_path, target_w=1257, target_h=720):
-    """Crops the image to match target resolution, usually 1257x720 from 1280x720."""
+def crop_to_target(image_path, target_w=1253, target_h=720):
+    """Crops the image to match target resolution, usually 1253x720 from 1280x720 (removing 12 left, 15 right)."""
     try:
         with Image.open(image_path) as img:
             w, h = img.size
             if w == target_w and h == target_h:
                 return
             
+            print(f"Cropping {image_path} to {target_w}x{target_h} (12px left, 15px right)...")
+            left = 12
+            top = 0
+            right = w - 15
+            bottom = h
+            
+            img = img.crop((left, top, right, bottom))
+            img.save(image_path)
     except Exception as e:
         print(f"Crop Exception for {image_path}: {e}")
 

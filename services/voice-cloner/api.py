@@ -11,7 +11,7 @@ app = FastAPI()
 os.environ["COQUI_TOS_AGREED"] = "1"
 
 # Initialize XTTS v2
-device = "cuda" if (os.getenv("USE_CUDA", "0") == "1" and torch.cuda.is_available()) else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Loading XTTS v2 on {device}...")
 tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
 
