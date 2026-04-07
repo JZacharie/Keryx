@@ -56,6 +56,11 @@ jobs:
         with:
           shared-key: "keryx-ingestor"
 
+      - name: Install system dependencies (OpenCV & Clang)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev clang libclang-dev
+
       - name: Build Rust binary (release)
         run: |
           cargo build --release --bin keryx-ingestor
