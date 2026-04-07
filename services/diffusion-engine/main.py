@@ -1,5 +1,7 @@
 import os
 import io
+import warnings
+warnings.filterwarnings("ignore")
 import uuid
 import uuid as uuid_pkg
 import time
@@ -59,7 +61,8 @@ print(f"Loading ControlNet: {CONTROLNET_ID}")
 controlnet = ControlNetModel.from_pretrained(
     CONTROLNET_ID,
     torch_dtype=torch_dtype,
-    use_safetensors=True
+    use_safetensors=True,
+    low_cpu_mem_usage=True
 )
 
 # Load Pipeline
@@ -70,13 +73,21 @@ pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
     controlnet=controlnet,
     torch_dtype=torch_dtype,
     variant="fp16" if DEVICE == "cuda" else None,
-    use_safetensors=True
+    use_safetensors=True,
+    low_cpu_mem_usage=True
 )
 
 if DEVICE == "cuda":
-    pipe.enable_attention_slicing()
-pipe.to(DEVICE)
-print("Models loaded successfully.")
+    # Memory Optimizations for CUDA
+    print("Enabling VRAM optimizations...")
+    pipe.enable_model_cpu_offload() # Moves models to GPU only when needed
+    pipe.enable_attention_slicing() # Reduces memory during attention
+    pipe.enable_vae_slicing()       # Slices VAE decoding for large images
+    pipe.enable_vae_tiling()        # Processes image in tiles to avoid OOM at 1024x1024
+else:
+    pipe.to(DEVICE)
+
+print("Models loaded and optimized successfully.")
 
 s3_session = aioboto3.Session()
 
@@ -157,27 +168,49 @@ async def upload_video(path: str, key: str) -> str:
         await s3.upload_file(path, S3_BUCKET, key, ExtraArgs={"ContentType": "video/mp4"})
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
 
+def get_canny_image(image: Image.Image, low_threshold: int = 100, high_threshold: int = 200) -> Image.Image:
+    """
+    Generates a Canny edge map for ControlNet structural guidance.
+    Used to maintain the layout and structure of the original slide.
+    """
+    # Convert PIL to numpy (OpenCV format)
+    image_np = np.array(image)
+    
+    # Apply Canny edge detection
+    edges = cv2.Canny(image_np, low_threshold, high_threshold)
+    
+    # ControlNet expects a 3-channel RGB image
+    edges = edges[:, :, None]
+    edges = np.concatenate([edges, edges, edges], axis=2)
+    
+    return Image.fromarray(edges)
+
+
 def remove_notebooklm_watermark(image: Image.Image) -> Image.Image:
     """
     Surgical removal of the NotebookLM logo (bottom-right corner only).
-    Samples the background color just above the logo zone and fills with it.
-    No AI needed — the background is always a flat/near-flat color.
+    Samples the background color column-by-column just above the logo zone 
+    and extends it downwards. This preserves horizontal gradients.
     """
     from PIL import ImageDraw
-    import numpy as np
-
+    
     img = image.copy().convert("RGB")
     w, h = img.size
 
-    # Logo bounding box (tight)
+    # Logo bounding box (approximate zone for NotebookLM)
     x1, y1 = int(w * 0.80), int(h * 0.91)
 
-    # Sample background color from a small patch just above the logo
-    sample_patch = np.array(img.crop((x1, y1 - 10, w, y1)))
-    bg_color = tuple(np.median(sample_patch.reshape(-1, 3), axis=0).astype(int).tolist())
-
-    # Fill the logo zone with the sampled background color
-    ImageDraw.Draw(img).rectangle([x1, y1, w, h], fill=bg_color)
+    draw = ImageDraw.Draw(img)
+    
+    # Process each column in the watermark zone
+    for x in range(x1, w):
+        # Sample color from 5 pixels above the watermark zone to avoid edge artifacts
+        sample_y = max(0, y1 - 5)
+        color = img.getpixel((x, sample_y))
+        
+        # Draw a vertical line to fill the watermark area for this specific column
+        draw.line([(x, y1), (x, h)], fill=color, width=1)
+        
     return img
 
 
