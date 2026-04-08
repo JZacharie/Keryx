@@ -1,5 +1,8 @@
 # --- Runner ---
-FROM debian:bookworm-slim AS runner
+FROM ubuntu:24.04 AS runner
+
+# Set non-interactive for apt
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install yt-dlp, ffmpeg and standard CA certs
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
