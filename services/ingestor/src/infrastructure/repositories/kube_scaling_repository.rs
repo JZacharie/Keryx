@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use crate::domain::ports::scaling_repository::ScalingRepository;
-use kube::{Client, Api};
-use k8s_openapi::api::apps::v1::Deployment;
-use kube::api::{Patch, PatchParams};
+use kube::{Client, Api, core::DynamicObject, discovery::ApiResource};
+use kube::api::{Patch, PatchParams, GroupVersionKind};
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -34,6 +33,18 @@ impl ScalingRepository for KubeScalingRepository {
         
         deployments.patch(deployment_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         
+        // KEDA Compatibility: If there is an associated HTTPScaledObject, we must set its minReplicas to 1
+        // to prevent KEDA from scaling the deployment back to 0 due to lack of traffic.
+        if deployment_name == "openai-whisper-asr-webservice" {
+            if let Err(e) = self.patch_httpscaledobject_min_replicas(namespace, "openai-whisper-asr-webservice-http", 1).await {
+                tracing::warn!("Failed to patch HTTPScaledObject for {}: {}", deployment_name, e);
+            }
+        } else if deployment_name == "whisperx" {
+             if let Err(e) = self.patch_httpscaledobject_min_replicas(namespace, "whisperx-http", 1).await {
+                tracing::warn!("Failed to patch HTTPScaledObject for {}: {}", deployment_name, e);
+            }
+        }
+        
         // Wait for ready
         tracing::info!("Waiting for deployment {}/{} to be ready...", namespace, deployment_name);
         let mut attempts = 0;
@@ -59,6 +70,16 @@ impl ScalingRepository for KubeScalingRepository {
 
             attempts += 1;
             sleep(Duration::from_secs(1)).await;
+        }
+
+        // If we reach here, it's a timeout.
+        // Before returning error, try to capture pod status for debugging
+        if let Ok(pods) = Api::<kube::core::Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&format!("app.kubernetes.io/name={}", deployment_name))).await {
+            for p in pods {
+                if let Some(status) = p.status {
+                    tracing::error!("Pod {} status: {:?} - Phase: {:?}", p.metadata.name.unwrap_or_default(), status.container_statuses, status.phase);
+                }
+            }
         }
         
         Err(anyhow!("Timeout waiting for deployment {}/{} to be ready", namespace, deployment_name))
@@ -93,10 +114,18 @@ impl ScalingRepository for KubeScalingRepository {
     }
 
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
-        let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
+        let deployments: Api<k8s_openapi::api::apps::v1::Deployment> = Api::namespaced(self.client.clone(), namespace);
         tracing::info!("Scaling down deployment {}/{} to 0...", namespace, deployment_name);
         let patch = json!({ "spec": { "replicas": 0 } });
         deployments.patch(deployment_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+
+        // Reset KEDA minReplicas
+        if deployment_name == "openai-whisper-asr-webservice" {
+            let _ = self.patch_httpscaledobject_min_replicas(namespace, "openai-whisper-asr-webservice-http", 0).await;
+        } else if deployment_name == "whisperx" {
+            let _ = self.patch_httpscaledobject_min_replicas(namespace, "whisperx-http", 0).await;
+        }
+        
         Ok(())
     }
 }
@@ -106,7 +135,7 @@ impl KubeScalingRepository {
     async fn enforce_vram_priority(&self) -> Result<()> {
         let background_services = vec![
             ("llama-cpp", "llama-cpp"),
-            ("qwen-tts", "qwen3-tts"),
+            // ("qwen-tts", "qwen3-tts"), // Do not preempt qwen3-tts as it's used in primary ingestion jobs
         ];
 
         for (ns, deploy) in background_services {
@@ -118,6 +147,24 @@ impl KubeScalingRepository {
                 tracing::info!("Successfully preempted service {}/{} to free VRAM.", ns, deploy);
             }
         }
+        Ok(())
+    }
+
+    async fn patch_httpscaledobject_min_replicas(&self, namespace: &str, resource_name: &str, min_replicas: i32) -> Result<()> {
+        let gvk = GroupVersionKind::gvk("http.keda.sh", "v1alpha1", "HTTPScaledObject");
+        let ar = ApiResource::from_gvk(&gvk);
+        let api: Api<DynamicObject> = Api::namespaced_with(self.client.clone(), namespace, &ar);
+
+        let patch = json!({
+            "spec": {
+                "replicas": {
+                    "min": min_replicas
+                }
+            }
+        });
+
+        tracing::info!("Patching HTTPScaledObject {}/{} minReplicas to {}...", namespace, resource_name, min_replicas);
+        api.patch(resource_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         Ok(())
     }
 }
