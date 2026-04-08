@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3-pip \
     nodejs \
     aria2 \
+    libopencv-dev \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && update-ca-certificates
@@ -40,7 +41,7 @@ FROM lukemathwalker/cargo-chef:latest-rust-1.80-slim AS chef
 WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y pkg-config libssl-dev curl
+    apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev
 
 FROM chef AS planner
 COPY . .
