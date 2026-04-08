@@ -66,7 +66,8 @@ impl IngestVideoUseCase {
         let _ = self.scaling_repo.scale_down("keryx", "voice-cloner").await;
         
         if let Err(e) = &res {
-            let _ = self.notification_repo.notify_slack(&format!("❌ Job {} failed: {}", job_id, e)).await;
+            let error_details = format!("{:?}", e);
+            let _ = self.notification_repo.notify_slack(&format!("❌ *Job {} failed !*\n\n*Error:* {}\n\n*Details:* ```{}```", job_id, e, error_details)).await;
         }
 
         res
@@ -106,11 +107,21 @@ impl IngestVideoUseCase {
         tracing::info!("[Job {}] Phase 1: Downloading video and audio...", job_id);
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
         let (video_path, audio_path, _) = self.downloader.download(&job.source_url).await?;
+        self.notification_repo.notify_slack(&format!("📥 [Job {}] *Phase 1 Finished:* Video downloaded successfully.", job_id)).await?;
+        
 
         // 2. Transcribe (Early to allow duration calculations)
         tracing::info!("[Job {}] Phase 2: Transcribing original audio...", job_id);
         let transcription = self.stt_repo.transcribe(&audio_path).await?;
         let total_video_duration = transcription.segments.last().map(|s| s.end).unwrap_or(0.0);
+        
+        // Upload transcription to S3
+        let trans_json = serde_json::to_string_pretty(&transcription)?;
+        let trans_path = audio_path.with_extension("json");
+        std::fs::write(&trans_path, trans_json)?;
+        let trans_url = self.storage_repo.upload_file(&trans_path, &format!("jobs/{}/transcription.json", job_id)).await?;
+        
+        self.notification_repo.notify_slack(&format!("📝 [Job {}] *Phase 2 Finished:* Transcription completed ({}s). Result: {}", job_id, total_video_duration, trans_url)).await?;
 
         // 3. Analyze and Clean
         tracing::info!("[Job {}] Phase 3: Analyzing and cleaning slides...", job_id);
@@ -131,6 +142,7 @@ impl IngestVideoUseCase {
             cleaned_frames.push((cleaned_local_path, *timestamp));
             pptx_inputs.push(SlideInput { image_url: cleaned_url, text: String::new() });
         }
+        self.notification_repo.notify_slack(&format!("✨ [Job {}] *Phase 3 Finished:* {} slides cleaned and stylized.", job_id, slides.len())).await?;
 
         // Calculate durations
         let mut frames_with_durations = Vec::new();
@@ -164,6 +176,7 @@ impl IngestVideoUseCase {
             fr_audio_segments.push(fr_seg_path);
             jf_audio_segments.push(jf_seg_path);
         }
+        self.notification_repo.notify_slack(&format!("🎙️ [Job {}] *Phase 5 Finished:* {} high-quality audio tracks generated.", job_id, transcription.segments.len())).await?;
 
         // 6. Final Exports and PPTX
         tracing::info!("[Job {}] Phase 6: Final Exports and PPTX...", job_id);
