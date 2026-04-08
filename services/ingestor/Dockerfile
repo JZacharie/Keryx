@@ -1,5 +1,5 @@
 # --- Runner ---
-FROM debian:trixie-slim AS runner
+FROM debian:bookworm-slim AS runner
 
 # Install yt-dlp, ffmpeg and standard CA certs
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
