@@ -3,6 +3,8 @@ use anyhow::{Result, anyhow};
 use crate::domain::ports::scaling_repository::ScalingRepository;
 use kube::{Client, Api, core::DynamicObject, discovery::ApiResource};
 use kube::api::{Patch, PatchParams, GroupVersionKind};
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::Pod;
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -74,7 +76,7 @@ impl ScalingRepository for KubeScalingRepository {
 
         // If we reach here, it's a timeout.
         // Before returning error, try to capture pod status for debugging
-        if let Ok(pods) = Api::<kube::core::Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&format!("app.kubernetes.io/name={}", deployment_name))).await {
+        if let Ok(pods) = Api::<Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&format!("app.kubernetes.io/name={}", deployment_name))).await {
             for p in pods {
                 if let Some(status) = p.status {
                     tracing::error!("Pod {} status: {:?} - Phase: {:?}", p.metadata.name.unwrap_or_default(), status.container_statuses, status.phase);
@@ -114,7 +116,7 @@ impl ScalingRepository for KubeScalingRepository {
     }
 
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
-        let deployments: Api<k8s_openapi::api::apps::v1::Deployment> = Api::namespaced(self.client.clone(), namespace);
+        let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
         tracing::info!("Scaling down deployment {}/{} to 0...", namespace, deployment_name);
         let patch = json!({ "spec": { "replicas": 0 } });
         deployments.patch(deployment_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
