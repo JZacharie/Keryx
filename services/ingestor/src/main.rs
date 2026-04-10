@@ -33,11 +33,13 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("trace")))
         .init();
 
+    use std::io::Write;
     println!(">>> KERYX INGESTOR STARTING UP <<<");
-    tracing::info!("Tracing initialized.");
+    std::io::stdout().flush().unwrap();
+    tracing::info!("Tracing initialized at TRACE level.");
 
     // Fix for rustls 0.23: explicitly install crypto provider
     #[allow(clippy::single_component_path_imports)]
