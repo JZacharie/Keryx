@@ -21,6 +21,7 @@ spec:
       labels:
         {{- include "keryx-ingestor.selectorLabels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "keryx-ingestor.fullname" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
