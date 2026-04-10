@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-cloner
+  namespace: keryx
+  labels:
+    app: voice-cloner
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: voice-cloner
+  template:
+    metadata:
+      labels:
+        app: voice-cloner
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: vm169
+      tolerations:
+      - key: "special-node"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      containers:
+      - name: voice-cloner
+        image: ghcr.io/jzacharie/keryx-voice-cloner:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 9880
+        env:
+        - name: COQUI_TOS_AGREED
+          value: "1"
+        - name: S3_ENDPOINT
+          value: "https://minio-170-api.zacharie.org"
+        - name: S3_BUCKET
+          value: "keryx"
+        - name: AWS_ACCESS_KEY_ID
+          value: "minioadmin"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "minioadmin"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        volumeMounts:
+        - name: tts-cache
+          mountPath: /root/.local/share/tts
+      volumes:
+      - name: tts-cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-cloner
+  namespace: keryx
+spec:
+  selector:
+    app: voice-cloner
+  ports:
+  - port: 9880
+    targetPort: 9880
+    protocol: TCP
