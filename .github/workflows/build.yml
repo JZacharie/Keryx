@@ -78,26 +78,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Rust with cache
+      - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
+      - name: Cache dependencies (cargo-chef)
+        uses: actions/cache@v4
         with:
-          shared-key: "keryx-ingestor"
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-chef-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-chef-
+
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build.yml') }}
 
       - name: Install system dependencies (OpenCV & Clang)
         run: |
           sudo apt-get update
           sudo apt-get install -y libopencv-dev clang libclang-dev mold
 
-      - name: Build Rust binary (release)
+      - name: Install cargo-chef
+        run: |
+          if ! command -v cargo-chef &> /dev/null; then
+            cargo install cargo-chef
+          fi
+
+      - name: Cargo Chef Prepare
+        run: cargo chef prepare --recipe-path recipe.json
+
+      - name: Cargo Chef Cook (Cache warmup)
+        run: cargo chef cook --release --recipe-path recipe.json
+
+      - name: Build Rust binary (Actual build)
         run: |
           cargo build --release --bin keryx-ingestor
           ls -lh target/release/keryx-ingestor
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: keryx-ingestor-binary
           path: target/release/keryx-ingestor
