@@ -36,7 +36,7 @@ ARG PREBUILT_BINARY
 COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
 COPY static static
 COPY begin.mp4 begin.mp4
-RUN chmod +x /usr/local/bin/keryx-ingestor
+RUN apt-get update && apt-get install -y --no-install-recommends binutils && ldd /usr/local/bin/keryx-ingestor
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 
