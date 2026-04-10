@@ -52,7 +52,7 @@ impl ScalingRepository for KubeScalingRepository {
         let mut attempts = 0;
         let mut preempted = false;
 
-        while attempts < 300 { // 5 minutes timeout
+        while attempts < 600 { // 10 minutes timeout
             let d = deployments.get(deployment_name).await?;
             if let Some(status) = d.status {
                 if status.ready_replicas.unwrap_or(0) >= 1 {
@@ -62,10 +62,10 @@ impl ScalingRepository for KubeScalingRepository {
                 }
             }
             
-            // Priority Mechanism: If after 15 seconds it's still not ready, 
+            // Priority Mechanism: If after 30 seconds it's still not ready, 
             // maybe there's not enough VRAM. Let's kill background AI services.
-            if attempts > 15 && !preempted {
-                tracing::warn!("Deployment {}/{} is slow to start. Preempting background AI services to free VRAM...", namespace, deployment_name);
+            if attempts > 30 && !preempted {
+                tracing::warn!("Deployment {}/{} is slow to start ({}s). Preempting background AI services to free VRAM...", namespace, deployment_name, attempts);
                 self.enforce_vram_priority().await?;
                 preempted = true;
             }
@@ -76,15 +76,25 @@ impl ScalingRepository for KubeScalingRepository {
 
         // If we reach here, it's a timeout.
         // Before returning error, try to capture pod status for debugging
-        if let Ok(pods) = Api::<Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&format!("app.kubernetes.io/name={}", deployment_name))).await {
+        let label_selector = format!("app={},app.kubernetes.io/name={}", deployment_name, deployment_name);
+        if let Ok(pods) = Api::<Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&label_selector)).await {
             for p in pods {
+                let pod_name = p.metadata.name.clone().unwrap_or_else(|| "unknown".to_string());
                 if let Some(status) = p.status {
-                    tracing::error!("Pod {} status: {:?} - Phase: {:?}", p.metadata.name.unwrap_or_default(), status.container_statuses, status.phase);
+                    tracing::error!("Pod {} status: Phase={:?}, Reason={:?}, Message={:?}", 
+                        pod_name, status.phase, status.reason, status.message);
+                    if let Some(container_statuses) = status.container_statuses {
+                        for cs in container_statuses {
+                            tracing::error!("  Container {} state: {:?}", cs.name, cs.state);
+                        }
+                    }
                 }
             }
+        } else {
+            tracing::error!("Failed to list pods for debugging timeout of {}/{} with selector {}", namespace, deployment_name, label_selector);
         }
         
-        Err(anyhow!("Timeout waiting for deployment {}/{} to be ready", namespace, deployment_name))
+        Err(anyhow!("Timeout waiting for deployment {}/{} to be ready after 10m", namespace, deployment_name))
     }
 
     async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {

@@ -1,4 +1,6 @@
 fastapi
 uvicorn
 python-multipart
+pytest
+httpx
 # TTS and transformers are pre-installed for better caching

@@ -16,9 +16,14 @@ print(f"Loading XTTS v2 on {device}...")
 tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
 
 @app.get("/")
-async def generate_tts(text: str, language: str = "en", speaker_wav: str = "/app/host/Joseph.wav"):
+async def generate_tts(text: str, language: str = "en", speaker_wav: str = "reference.wav"):
+    # Try different locations for the reference wav
     if not os.path.exists(speaker_wav):
-        raise HTTPException(status_code=404, detail=f"Speaker wav not found: {speaker_wav}")
+        alt_path = os.path.join(os.path.dirname(__file__), speaker_wav)
+        if os.path.exists(alt_path):
+            speaker_wav = alt_path
+        else:
+            raise HTTPException(status_code=404, detail=f"Speaker wav not found: {speaker_wav}. Looking in: {os.getcwd()} and {os.path.dirname(__file__)}")
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
