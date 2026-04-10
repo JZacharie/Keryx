@@ -15,6 +15,7 @@ spec:
       labels:
         app: voice-cloner
     spec:
+      runtimeClassName: nvidia
       nodeSelector:
         kubernetes.io/hostname: vm169
       tolerations:
