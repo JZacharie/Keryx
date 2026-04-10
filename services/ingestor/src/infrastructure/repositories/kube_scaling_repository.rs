@@ -99,30 +99,35 @@ impl ScalingRepository for KubeScalingRepository {
 
     async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::limited(5))
             .build()?;
         
-        let url = format!("http://{}/health", service_name);
+        // List of endpoints to try
+        let endpoints = vec!["/health", "/docs", "/"];
         let mut attempts = 0;
         
-        while attempts < 150 { // 5 minutes timeout
-            match client.get(&url).send().await {
-                Ok(resp) if resp.status().is_success() => {
-                    tracing::info!("Service {} responded to health check!", service_name);
-                    return Ok(());
-                }
-                Ok(resp) => {
-                    tracing::debug!("Service {} ping: HTTP {} ({}s)", service_name, resp.status(), attempts * 2);
-                }
-                Err(e) => {
-                    tracing::debug!("Service {} ping failed: {} ({}s)", service_name, e, attempts * 2);
+        while attempts < 60 { // 5 minutes (60 * 5s)
+            for endpoint in &endpoints {
+                let url = format!("http://{}{}", service_name, endpoint);
+                match client.get(&url).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        tracing::info!("Service {} responded to health check on {}!", service_name, endpoint);
+                        return Ok(());
+                    }
+                    Ok(resp) => {
+                        tracing::debug!("Service {} ping {}: HTTP {} ({}s)", service_name, endpoint, resp.status(), attempts * 5);
+                    }
+                    Err(e) => {
+                        tracing::debug!("Service {} ping {} failed: {} ({}s)", service_name, endpoint, e, attempts * 5);
+                    }
                 }
             }
             attempts += 1;
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_secs(5)).await;
         }
         
-        Err(anyhow!("Service {} failed to respond to health check after 300s", service_name))
+        Err(anyhow!("Service {} failed to respond to any health check (tried {:?}) after 300s", service_name, endpoints))
     }
 
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
