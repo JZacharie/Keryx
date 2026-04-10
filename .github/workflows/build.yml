@@ -467,42 +467,42 @@ jobs:
           echo "${{ secrets.KUBECONFIG_JO3 }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
-      - name: ArgoCD Sync
-        run: |
-          # Patch ArgoCD Application to trigger a hard refresh/sync
-          kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
+      # - name: ArgoCD Sync
+      #   run: |
+      #     # Patch ArgoCD Application to trigger a hard refresh/sync
+      #     kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
 
-          # Only restart if they were rebuilt
-          if [ "${{ needs.changes.outputs.ingestor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
-            kubectl rollout status deployment keryx-keryx-ingestor -n keryx
-          fi
+      #     # Only restart if they were rebuilt
+      #     if [ "${{ needs.changes.outputs.ingestor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
+      #       kubectl rollout status deployment keryx-keryx-ingestor -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.diffusion }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment keryx-diffusion-engine -n keryx
-            kubectl rollout status deployment keryx-diffusion-engine -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.diffusion }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment keryx-diffusion-engine -n keryx
+      #       kubectl rollout status deployment keryx-diffusion-engine -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.pptx }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment keryx-pptx-builder -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.pptx }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment keryx-pptx-builder -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.voice_cloner }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-             kubectl rollout restart deployment voice-cloner -n keryx
-             kubectl rollout status deployment voice-cloner -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.voice_cloner }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #        kubectl rollout restart deployment voice-cloner -n keryx
+      #        kubectl rollout status deployment voice-cloner -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.video_processor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment video-processor -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.video_processor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment video-processor -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.voice_cloner_gpt }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment voice-cloner-gpt -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.voice_cloner_gpt }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment voice-cloner-gpt -n keryx
+      #     fi
 
-          if [ "${{ needs.changes.outputs.wan2gp }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-            kubectl rollout restart deployment wan2gp -n keryx
-          fi
+      #     if [ "${{ needs.changes.outputs.wan2gp }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment wan2gp -n keryx
+      #     fi
 
       - name: Notify Slack
         if: success()
