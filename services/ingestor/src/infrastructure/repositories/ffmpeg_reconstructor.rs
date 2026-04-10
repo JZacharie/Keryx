@@ -142,13 +142,16 @@ impl VideoReconstructor for FfmpegReconstructor {
         // 2. Complex filter logic:
         // - Pad V1 with 3s of its last frame (1s hold + 2s crossfade)
         // - Pad V1 audio with 3s of silence
-        // - Crossfade from (V1+Hold) to V2 starting at duration + 1s
+        // - Pad V2 with 2s of its first frame (the fade target)
+        // - Delay V2 audio by 2s to match the fade
         let offset = duration + 1.0;
         let filter = format!(
             "[0:v]tpad=stop_duration=3:stop_mode=clone[v1_ext]; \
-             [v1_ext][1:v]xfade=transition=fade:duration=2:offset={:.3}[outv]; \
+             [1:v]tpad=start_duration=2:start_mode=clone[v2_ext]; \
+             [v1_ext][v2_ext]xfade=transition=fade:duration=2:offset={:.3}[outv]; \
              [0:a]apad=pad_dur=3[a1_ext]; \
-             [a1_ext][1:a]concat=n=2:v=0:a=1[outa]", 
+             [1:a]adelay=2000:all=1[a2_ext]; \
+             [a1_ext][a2_ext]concat=n=2:v=0:a=1[outa]", 
             offset
         );
 
