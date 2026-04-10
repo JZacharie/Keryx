@@ -58,19 +58,29 @@ async fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(&temp_dir)?;
 
     // Initialize repositories
+    tracing::info!("Starting repository initialization...");
     let job_repo = Arc::new(RedisJobRepository::new(&redis_url)?);
+    tracing::debug!("Job repository (Redis) initialized.");
+
     let storage_repo = Arc::new(S3StorageRepository::new(&s3_region, &s3_bucket, s3_endpoint.as_deref()).await);
+    tracing::debug!("Storage repository (S3) initialized.");
+
     let downloader = Arc::new(YtDlpRepository::new(temp_dir.clone()));
     let analyzer = Arc::new(FfmpegAnalyzer::new(temp_dir.clone()));
     let stt_repo = Arc::new(WhisperSTTRepository::new(&whisper_url));
     let translator = Arc::new(OllamaTranslatorRepository::new(&ollama_url, "llama3"));
     let stylizer = Arc::new(DiffusionStylizerRepository::new(diffusion_url));
     let pptx_repo = Arc::new(PptxBuilderRepository::new(pptx_url));
+
+    tracing::info!("Initializing KubeScalingRepository...");
     let scaling_repo = Arc::new(KubeScalingRepository::new().await?);
+    tracing::debug!("KubeScalingRepository initialized successfully.");
+
     let tts_repo = Arc::new(QwenTTSRepository::new(tts_url));
     let voice_cloner_repo = Arc::new(CoquiVoiceClonerRepository::new(voice_cloner_url));
     let reconstructor = Arc::new(FfmpegReconstructor::new());
     let notification_repo = Arc::new(SlackNotificationRepository::new(slack_webhook));
+    tracing::info!("All repositories initialized successfully.");
 
     // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(

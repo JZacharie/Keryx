@@ -31,7 +31,7 @@ resources:
     memory: 2Gi
 
 env:
-  RUST_LOG: "info"
+  RUST_LOG: "debug"
   REDIS_URL: "redis://dragonfly.dragonfly.svc.cluster.local:6379"
   S3_BUCKET: "keryx-raw"
   S3_REGION: "eu-west-1"
