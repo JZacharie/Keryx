@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
-use crate::domain::ports::voice_cloner_repository::VoiceClonerRepository;
+use keryx_core::domain::ports::voice_cloner_repository::VoiceClonerRepository;
 use reqwest::Client;
 
 pub struct CoquiVoiceClonerRepository {

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
 use tokio::process::Command;
-use crate::domain::ports::video_repository::VideoReconstructor;
+use keryx_core::domain::ports::video_repository::VideoReconstructor;
 
 pub struct FfmpegReconstructor;
 

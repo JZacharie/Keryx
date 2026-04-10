@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::Result;
 use std::path::PathBuf;
-use crate::domain::ports::stt_repository::{STTRepository, TranscriptionResult, TranscriptionSegment};
+use keryx_core::domain::ports::stt_repository::{STTRepository, TranscriptionResult, TranscriptionSegment};
 use reqwest::multipart;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};

@@ -3,7 +3,7 @@ use anyhow::{Result, anyhow};
 use std::path::PathBuf;
 use tokio::process::Command;
 use uuid::Uuid;
-use crate::domain::ports::video_repository::VideoDownloader;
+use keryx_core::domain::ports::video_repository::VideoDownloader;
 
 pub struct YtDlpRepository {
     download_dir: PathBuf,

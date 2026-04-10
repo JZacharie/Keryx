@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
-use crate::domain::ports::tts_repository::TTSRepository;
+use keryx_core::domain::ports::tts_repository::TTSRepository;
 use reqwest::Client;
 use serde_json::json;
 

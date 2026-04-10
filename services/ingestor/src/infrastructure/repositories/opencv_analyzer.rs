@@ -8,7 +8,7 @@ use opencv::{
     imgproc,
     core::{self, absdiff, sum_elems, Mat},
 };
-use crate::domain::ports::video_repository::VideoAnalyzer;
+use keryx_core::domain::ports::video_repository::VideoAnalyzer;
 
 pub struct OpenCvAnalyzer {
     output_dir: PathBuf,

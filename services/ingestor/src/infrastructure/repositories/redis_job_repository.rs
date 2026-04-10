@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::{Result, Context};
-use crate::domain::ports::job_repository::JobRepository;
-use crate::domain::entities::job::{Job, JobStatus};
+use keryx_core::domain::ports::job_repository::JobRepository;
+use keryx_core::domain::entities::job::{Job, JobStatus};
 use redis::AsyncCommands;
 use uuid::Uuid;
 

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
-use crate::domain::ports::scaling_repository::ScalingRepository;
+use keryx_core::domain::ports::scaling_repository::ScalingRepository;
 use kube::{Client, Api, core::DynamicObject, discovery::ApiResource};
 use kube::api::{Patch, PatchParams, GroupVersionKind};
 use k8s_openapi::api::apps::v1::Deployment;

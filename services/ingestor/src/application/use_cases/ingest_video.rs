@@ -1,18 +1,19 @@
 use std::sync::Arc;
 use uuid::Uuid;
 use anyhow::Result;
-use crate::domain::ports::job_repository::JobRepository;
-use crate::domain::ports::storage_repository::StorageRepository;
-use crate::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer, VideoReconstructor};
-use crate::domain::ports::stt_repository::STTRepository;
-use crate::domain::ports::translator_repository::TranslatorRepository;
-use crate::domain::ports::stylizer_repository::StylizerRepository;
-use crate::domain::ports::pptx_repository::{PptxRepository, SlideInput};
-use crate::domain::ports::scaling_repository::ScalingRepository;
-use crate::domain::ports::tts_repository::TTSRepository;
-use crate::domain::ports::voice_cloner_repository::VoiceClonerRepository;
-use crate::domain::ports::notification_repository::NotificationRepository;
-use crate::domain::entities::job::JobStatus;
+use std::path::PathBuf;
+use keryx_core::domain::ports::job_repository::JobRepository;
+use keryx_core::domain::ports::storage_repository::StorageRepository;
+use keryx_core::domain::ports::video_repository::{VideoDownloader, VideoAnalyzer, VideoReconstructor};
+use keryx_core::domain::ports::stt_repository::STTRepository;
+use keryx_core::domain::ports::translator_repository::TranslatorRepository;
+use keryx_core::domain::ports::stylizer_repository::StylizerRepository;
+use keryx_core::domain::ports::pptx_repository::{PptxRepository, SlideInput};
+use keryx_core::domain::ports::scaling_repository::ScalingRepository;
+use keryx_core::domain::ports::tts_repository::TTSRepository;
+use keryx_core::domain::ports::voice_cloner_repository::VoiceClonerRepository;
+use keryx_core::domain::ports::notification_repository::NotificationRepository;
+use keryx_core::domain::entities::job::JobStatus;
 
 pub struct IngestVideoUseCase {
     job_repo: Arc<dyn JobRepository>,
