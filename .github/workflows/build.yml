@@ -37,7 +37,7 @@ jobs:
       voice_cloner_gpt: ${{ steps.filter.outputs.voice_cloner_gpt }}
       wan2gp: ${{ steps.filter.outputs.wan2gp }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -135,7 +135,7 @@ jobs:
           ls -lh target/release/keryx-ingestor
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keryx-ingestor-binary
           path: target/release/keryx-ingestor
@@ -156,7 +156,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download binary
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: keryx-ingestor-binary
           path: services/ingestor/target/release/
@@ -454,7 +454,7 @@ jobs:
   deploy:
     name: 🚀 Deploy to Cluster
     needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp]
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true')
+    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Install kubectl
