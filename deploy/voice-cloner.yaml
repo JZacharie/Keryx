@@ -46,10 +46,27 @@ spec:
           value: "compute,utility"
         volumeMounts:
         - name: tts-cache
-          mountPath: /root/.local/share/tts
+          mountPath: /home/keryx/.local/share/tts
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
       volumes:
       - name: tts-cache
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: tts-models-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tts-models-pvc
+  namespace: keryx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: proxmox-aquabot-bpool-xfs-i
 ---
 apiVersion: v1
 kind: Service

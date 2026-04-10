@@ -20,6 +20,11 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
+# Add application code
+COPY api.py .
+COPY reference.wav .
+COPY test_api.py .
+
 # Add non-root user
 RUN useradd -m keryx && chown -R keryx:keryx /app
 USER keryx

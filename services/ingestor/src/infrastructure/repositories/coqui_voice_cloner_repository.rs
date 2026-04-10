@@ -21,12 +21,19 @@ impl CoquiVoiceClonerRepository {
 #[async_trait]
 impl VoiceClonerRepository for CoquiVoiceClonerRepository {
     async fn voice_clone(&self, text: &str, language: &str, speaker_wav: Option<&str>, target_path: &PathBuf) -> Result<PathBuf> {
-        let mut url = format!("{}?text={}&language={}", self.api_url, text, language);
+        let mut params = vec![
+            ("text", text),
+            ("language", language),
+        ];
+        
         if let Some(wav) = speaker_wav {
-            url.push_str(&format!("&speaker_wav={}", wav));
+            params.push(("speaker_wav", wav));
         }
 
-        let response = self.client.get(url).send().await?;
+        let response = self.client.get(&self.api_url)
+            .query(&params)
+            .send()
+            .await?;
         if !response.status().is_success() {
             let err = response.text().await?;
             return Err(anyhow!("Voice cloner error: {}", err));
