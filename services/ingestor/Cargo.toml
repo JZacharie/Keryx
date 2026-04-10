@@ -1,6 +1,7 @@
 [package]
 name = "keryx-ingestor"
-version = "0.1.0"
+version = "0.4.0"
+authors = ["Joseph ZACHARIE <joseph@example.com>"]
 edition = "2024"
 
 [dependencies]
