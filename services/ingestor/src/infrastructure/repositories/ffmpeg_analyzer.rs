@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::io::{BufReader, AsyncBufReadExt};
-use crate::domain::ports::video_repository::VideoAnalyzer;
+use keryx_core::domain::ports::video_repository::VideoAnalyzer;
 
 pub struct FfmpegAnalyzer {
     output_dir: PathBuf,

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use serde_json::json;
-use crate::domain::ports::stylizer_repository::StylizerRepository;
+use keryx_core::domain::ports::stylizer_repository::StylizerRepository;
 
 pub struct DiffusionStylizerRepository {
     api_url: String,

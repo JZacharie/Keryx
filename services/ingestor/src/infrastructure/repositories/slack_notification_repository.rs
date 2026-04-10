@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use anyhow::Result;
-use crate::domain::ports::notification_repository::NotificationRepository;
+use keryx_core::domain::ports::notification_repository::NotificationRepository;
 use serde_json::json;
 
 pub struct SlackNotificationRepository {

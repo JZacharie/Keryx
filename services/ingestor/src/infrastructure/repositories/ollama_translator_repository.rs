@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use anyhow::Result;
-use crate::domain::ports::translator_repository::TranslatorRepository;
+use keryx_core::domain::ports::translator_repository::TranslatorRepository;
 use serde_json::json;
 
 pub struct OllamaTranslatorRepository {

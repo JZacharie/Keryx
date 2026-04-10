@@ -6,7 +6,7 @@ use axum::{
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::domain::entities::job::{Job, JobStatus, StyleConfig};
+use keryx_core::domain::entities::job::{Job, JobStatus, StyleConfig};
 
 #[derive(Deserialize)]
 pub struct CreateJobRequest {

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use serde_json::json;
-use crate::domain::ports::pptx_repository::{PptxRepository, SlideInput};
+use keryx_core::domain::ports::pptx_repository::{PptxRepository, SlideInput};
 
 pub struct PptxBuilderRepository {
     api_url: String,
