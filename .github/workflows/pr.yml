@@ -33,9 +33,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libopencv-dev clang libclang-dev mold
 
-      - name: Install dependencies
-        run: sudo apt-get install -y mold libopencv-dev clang
-
       - name: Check Formatting
         run: cargo fmt --all -- --check
 
