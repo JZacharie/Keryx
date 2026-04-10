@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force building all images'
+        type: boolean
+        default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_build || 'none' }}
   cancel-in-progress: true
 
 env:
@@ -28,6 +33,9 @@ jobs:
       diffusion: ${{ steps.filter.outputs.diffusion }}
       pptx: ${{ steps.filter.outputs.pptx }}
       voice_cloner: ${{ steps.filter.outputs.voice_cloner }}
+      video_processor: ${{ steps.filter.outputs.video_processor }}
+      voice_cloner_gpt: ${{ steps.filter.outputs.voice_cloner_gpt }}
+      wan2gp: ${{ steps.filter.outputs.wan2gp }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -44,6 +52,12 @@ jobs:
               - 'services/pptx-builder/**'
             voice_cloner:
               - 'services/voice-cloner/**'
+            video_processor:
+              - 'services/video-processor/**'
+            voice_cloner_gpt:
+              - 'services/voice-cloner-gpt/**'
+            wan2gp:
+              - 'services/wan2gp/**'
 
   # ============================================================================
   # Phase 1: Security Audit
@@ -72,7 +86,7 @@ jobs:
   build-rust:
     name: 🦀 Build Rust Ingestor
     needs: changes
-    if: needs.changes.outputs.ingestor == 'true'
+    if: needs.changes.outputs.ingestor == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -167,6 +181,7 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -184,7 +199,7 @@ jobs:
   build-diffusion:
     name: 🎨 Build Diffusion Image
     needs: changes
-    if: needs.changes.outputs.diffusion == 'true'
+    if: needs.changes.outputs.diffusion == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -213,6 +228,7 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -227,7 +243,7 @@ jobs:
   build-pptx:
     name: 📄 Build PPTX Image
     needs: changes
-    if: needs.changes.outputs.pptx == 'true'
+    if: needs.changes.outputs.pptx == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -256,6 +272,7 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -270,7 +287,7 @@ jobs:
   build-voice-cloner:
     name: 🎙️ Build Voice Cloner Image
     needs: changes
-    if: needs.changes.outputs.voice_cloner == 'true'
+    if: needs.changes.outputs.voice_cloner == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -299,6 +316,7 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -310,13 +328,133 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  build-video-processor:
+    name: 📽️ Build Video Processor Image
+    needs: changes
+    if: needs.changes.outputs.video_processor == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-video-processor
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/video-processor
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-voice-cloner-gpt:
+    name: 🗣️ Build Voice Cloner GPT Image
+    needs: changes
+    if: needs.changes.outputs.voice_cloner_gpt == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-voice-cloner-gpt
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/voice-cloner-gpt
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-wan2gp:
+    name: 🌐 Build WAN2GP Image
+    needs: changes
+    if: needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-wan2gp
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/wan2gp
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # ============================================================================
   # Phase 4: Continuous Deployment (CD)
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true')
+    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp]
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Install kubectl
@@ -334,23 +472,35 @@ jobs:
           kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
 
           # Only restart if they were rebuilt
-          if [ "${{ needs.changes.outputs.ingestor }}" == "true" ]; then
+          if [ "${{ needs.changes.outputs.ingestor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
             kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
             kubectl rollout status deployment keryx-keryx-ingestor -n keryx
           fi
 
-          if [ "${{ needs.changes.outputs.diffusion }}" == "true" ]; then
+          if [ "${{ needs.changes.outputs.diffusion }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
             kubectl rollout restart deployment keryx-diffusion-engine -n keryx
             kubectl rollout status deployment keryx-diffusion-engine -n keryx
           fi
 
-          if [ "${{ needs.changes.outputs.pptx }}" == "true" ]; then
+          if [ "${{ needs.changes.outputs.pptx }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
             kubectl rollout restart deployment keryx-pptx-builder -n keryx
           fi
 
-          if [ "${{ needs.changes.outputs.voice_cloner }}" == "true" ]; then
+          if [ "${{ needs.changes.outputs.voice_cloner }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
              kubectl rollout restart deployment voice-cloner -n keryx
              kubectl rollout status deployment voice-cloner -n keryx
+          fi
+
+          if [ "${{ needs.changes.outputs.video_processor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+            kubectl rollout restart deployment video-processor -n keryx
+          fi
+
+          if [ "${{ needs.changes.outputs.voice_cloner_gpt }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+            kubectl rollout restart deployment voice-cloner-gpt -n keryx
+          fi
+
+          if [ "${{ needs.changes.outputs.wan2gp }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+            kubectl rollout restart deployment wan2gp -n keryx
           fi
 
       - name: Notify Slack
