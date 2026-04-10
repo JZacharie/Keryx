@@ -43,4 +43,4 @@ opencv = { version = "0.93", default-features = false, features = ["videoio", "i
 
 # Kubernetes control
 kube = { version = "0.96", features = ["runtime", "derive"] }
-k8s-openapi = { version = "0.23", features = ["latest"] }
+k8s-openapi = { version = "0.23", features = ["v1_30"] }
