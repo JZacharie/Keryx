@@ -169,14 +169,14 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-ingestor
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-ingestor
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -216,14 +216,14 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-diffusion-engine
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-diffusion-engine
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -260,14 +260,14 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-pptx-builder
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-pptx-builder
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -304,14 +304,14 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-voice-cloner
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-voice-cloner
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -346,13 +346,13 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-video-processor
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-video-processor
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -386,13 +386,13 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-voice-cloner-gpt
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-voice-cloner-gpt
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -426,13 +426,13 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/keryx-wan2gp
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-wan2gp
           tags: |
             type=ref,event=branch
             type=sha,prefix=
