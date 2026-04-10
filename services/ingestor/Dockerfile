@@ -35,6 +35,7 @@ FROM runner AS release-ci
 ARG PREBUILT_BINARY
 COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
 COPY static static
+COPY begin.mp4 begin.mp4
 RUN chmod +x /usr/local/bin/keryx-ingestor
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
@@ -44,7 +45,11 @@ FROM lukemathwalker/cargo-chef:latest-rust-1.80-slim AS chef
 WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev
+    apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev mold sccache
+
+ENV RUSTC_WRAPPER="sccache"
+ENV SCCACHE_DIR="/app/.sccache"
+
 
 FROM chef AS planner
 COPY . .
@@ -52,9 +57,11 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/app/.sccache \
+    cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN cargo build --release --bin keryx-ingestor
+RUN --mount=type=cache,target=/app/.sccache \
+    cargo build --release --bin keryx-ingestor
 
 FROM runner AS release
 COPY --from=builder /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor

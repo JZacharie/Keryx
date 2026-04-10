@@ -181,20 +181,31 @@ impl IngestVideoUseCase {
         // 6. Final Exports and PPTX
         tracing::info!("[Job {}] Phase 6: Final Exports and PPTX...", job_id);
         
+        let intro_path = PathBuf::from("begin.mp4");
+
+        // EN version
+        let video_en_recon = video_path.with_file_name(format!("{}_en_recon.mp4", job_id));
+        self.reconstructor.reconstruct(&silent_video_path, &audio_path, &video_en_recon).await?;
         let video_en_path = video_path.with_file_name(format!("{}_en.mp4", job_id));
-        self.reconstructor.reconstruct(&silent_video_path, &audio_path, &video_en_path).await?;
+        self.reconstructor.concat_with_transition(&intro_path, &video_en_recon, &video_en_path).await?;
         let url_en = self.storage_repo.upload_file(&video_en_path, &format!("jobs/{}/exports/video_en.mp4", job_id)).await?;
 
+        // FR version
         let full_fr_audio = audio_path.with_file_name(format!("{}_full_fr.wav", job_id));
         self.reconstructor.concat_audio(&fr_audio_segments, &full_fr_audio).await?;
+        let video_fr_recon = video_path.with_file_name(format!("{}_fr_tts_recon.mp4", job_id));
+        self.reconstructor.reconstruct(&silent_video_path, &full_fr_audio, &video_fr_recon).await?;
         let video_fr_path = video_path.with_file_name(format!("{}_fr_tts.mp4", job_id));
-        self.reconstructor.reconstruct(&silent_video_path, &full_fr_audio, &video_fr_path).await?;
+        self.reconstructor.concat_with_transition(&intro_path, &video_fr_recon, &video_fr_path).await?;
         let url_fr = self.storage_repo.upload_file(&video_fr_path, &format!("jobs/{}/exports/video_fr_tts.mp4", job_id)).await?;
 
+        // Joseph (JF) version
         let full_jf_audio = audio_path.with_file_name(format!("{}_full_jf.wav", job_id));
         self.reconstructor.concat_audio(&jf_audio_segments, &full_jf_audio).await?;
+        let video_jf_recon = video_path.with_file_name(format!("{}_jf_recon.mp4", job_id));
+        self.reconstructor.reconstruct(&silent_video_path, &full_jf_audio, &video_jf_recon).await?;
         let video_jf_path = video_path.with_file_name(format!("{}_jf.mp4", job_id));
-        self.reconstructor.reconstruct(&silent_video_path, &full_jf_audio, &video_jf_path).await?;
+        self.reconstructor.concat_with_transition(&intro_path, &video_jf_recon, &video_jf_path).await?;
         let url_jf = self.storage_repo.upload_file(&video_jf_path, &format!("jobs/{}/exports/video_jf.mp4", job_id)).await?;
 
         let pptx_url = self.pptx_repo.build(&job_id.to_string(), pptx_inputs).await?;
