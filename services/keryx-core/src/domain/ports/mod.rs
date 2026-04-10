@@ -1,0 +1,11 @@
+pub mod job_repository;
+pub mod storage_repository;
+pub mod video_repository;
+pub mod tts_repository;
+pub mod voice_cloner_repository;
+pub mod notification_repository;
+pub mod scaling_repository;
+pub mod stt_repository;
+pub mod translator_repository;
+pub mod stylizer_repository;
+pub mod pptx_repository;

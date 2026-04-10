@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "services/ingestor",
+    "services/ingestor", "services/keryx-core",
 ]
 resolver = "2"
