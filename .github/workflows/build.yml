@@ -18,6 +18,34 @@ env:
 
 jobs:
   # ============================================================================
+  # Phase 0: Detection
+  # ============================================================================
+  changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      ingestor: ${{ steps.filter.outputs.ingestor }}
+      diffusion: ${{ steps.filter.outputs.diffusion }}
+      pptx: ${{ steps.filter.outputs.pptx }}
+      voice_cloner: ${{ steps.filter.outputs.voice_cloner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ingestor:
+              - 'services/ingestor/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            diffusion:
+              - 'services/diffusion-engine/**'
+            pptx:
+              - 'services/pptx-builder/**'
+            voice_cloner:
+              - 'services/voice-cloner/**'
+
+  # ============================================================================
   # Phase 1: Security Audit
   # ============================================================================
   security:
@@ -43,6 +71,8 @@ jobs:
   # ============================================================================
   build-rust:
     name: 🦀 Build Rust Ingestor
+    needs: changes
+    if: needs.changes.outputs.ingestor == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -129,6 +159,8 @@ jobs:
 
   build-diffusion:
     name: 🎨 Build Diffusion Image
+    needs: changes
+    if: needs.changes.outputs.diffusion == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -170,6 +202,8 @@ jobs:
 
   build-pptx:
     name: 📄 Build PPTX Image
+    needs: changes
+    if: needs.changes.outputs.pptx == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -211,6 +245,8 @@ jobs:
 
   build-voice-cloner:
     name: 🎙️ Build Voice Cloner Image
+    needs: changes
+    if: needs.changes.outputs.voice_cloner == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,9 +291,9 @@ jobs:
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [build-ingestor, build-diffusion, build-pptx, build-voice-cloner]
+    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true')
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Install kubectl
         uses: azure/setup-kubectl@v5
@@ -273,23 +309,23 @@ jobs:
           # Patch ArgoCD Application to trigger a hard refresh/sync
           kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
 
-      - name: Rollout deployment
-        run: |
-          kubectl rollout restart deployment keryx-keryx-ingestor -n keryx || echo "Ingestor not found"
-          kubectl rollout restart deployment keryx-diffusion-engine -n keryx || echo "Diffusion Engine not found"
-          kubectl rollout restart deployment keryx-pptx-builder -n keryx || echo "PPTX Builder not found"
-          kubectl rollout restart deployment voice-cloner -n keryx || echo "Voice Cloner not found"
-
-          # Only wait if they exist
-          if kubectl get deployment keryx-keryx-ingestor -n keryx; then
+          # Only restart if they were rebuilt
+          if [ "${{ needs.changes.outputs.ingestor }}" == "true" ]; then
+            kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
             kubectl rollout status deployment keryx-keryx-ingestor -n keryx
           fi
 
-          if kubectl get deployment keryx-diffusion-engine -n keryx; then
+          if [ "${{ needs.changes.outputs.diffusion }}" == "true" ]; then
+            kubectl rollout restart deployment keryx-diffusion-engine -n keryx
             kubectl rollout status deployment keryx-diffusion-engine -n keryx
           fi
 
-          if kubectl get deployment voice-cloner -n keryx; then
+          if [ "${{ needs.changes.outputs.pptx }}" == "true" ]; then
+            kubectl rollout restart deployment keryx-pptx-builder -n keryx
+          fi
+
+          if [ "${{ needs.changes.outputs.voice_cloner }}" == "true" ]; then
+             kubectl rollout restart deployment voice-cloner -n keryx
              kubectl rollout status deployment voice-cloner -n keryx
           fi
 
