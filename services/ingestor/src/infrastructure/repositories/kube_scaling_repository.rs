@@ -105,24 +105,24 @@ impl ScalingRepository for KubeScalingRepository {
         let url = format!("http://{}/health", service_name);
         let mut attempts = 0;
         
-        while attempts < 30 {
+        while attempts < 150 { // 5 minutes timeout
             match client.get(&url).send().await {
                 Ok(resp) if resp.status().is_success() => {
                     tracing::info!("Service {} responded to health check!", service_name);
                     return Ok(());
                 }
                 Ok(resp) => {
-                    tracing::debug!("Service {} ping: HTTP {}", service_name, resp.status());
+                    tracing::debug!("Service {} ping: HTTP {} ({}s)", service_name, resp.status(), attempts * 2);
                 }
                 Err(e) => {
-                    tracing::debug!("Service {} ping failed: {}", service_name, e);
+                    tracing::debug!("Service {} ping failed: {} ({}s)", service_name, e, attempts * 2);
                 }
             }
             attempts += 1;
             sleep(Duration::from_secs(2)).await;
         }
         
-        Err(anyhow!("Service {} failed to respond to health check after 60s", service_name))
+        Err(anyhow!("Service {} failed to respond to health check after 300s", service_name))
     }
 
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
