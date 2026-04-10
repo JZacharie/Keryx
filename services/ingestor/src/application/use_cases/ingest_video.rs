@@ -98,7 +98,7 @@ impl IngestVideoUseCase {
         let p2 = self.scaling_repo.wait_for_service_ping("ollama.ollama.svc.cluster.local:11434");
         let p3 = self.scaling_repo.wait_for_service_ping("qwen3-tts.qwen-tts.svc.cluster.local:7860");
         let p4 = self.scaling_repo.wait_for_service_ping("voice-cloner.keryx.svc.cluster.local:9880");
-        let p5 = self.scaling_repo.wait_for_service_ping("keryx-pptx-builder.keryx.svc.cluster.local:8002");
+        let p5 = self.scaling_repo.wait_for_service_ping("keryx-pptx-builder.keryx.svc.cluster.local:80");
         
         let (pr0, pr1, pr2, pr3, pr4, pr5) = tokio::join!(p0, p1, p2, p3, p4, p5);
         pr0?; pr1?; pr2?; pr3?; pr4?; pr5?;
