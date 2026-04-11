@@ -33,10 +33,9 @@ EXPOSE 3000
 # --- CI Build (uses pre-built binary) ---
 FROM runner AS release-ci
 ARG PREBUILT_BINARY
-COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
-COPY static static
-COPY begin.mp4 begin.mp4
-RUN apt-get update && apt-get install -y --no-install-recommends binutils && chmod +x /usr/local/bin/keryx-ingestor && ldd /usr/local/bin/keryx-ingestor
+COPY --chmod=755 ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
+COPY --chown=keryx:keryx static static
+COPY --chown=keryx:keryx begin.mp4 begin.mp4
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 
@@ -64,8 +63,9 @@ RUN --mount=type=cache,target=/app/.sccache \
     cargo build --release --bin keryx-ingestor
 
 FROM runner AS release
-COPY --from=builder /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
-COPY --from=builder /app/static static
+COPY --from=builder --chmod=755 /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
+COPY --from=builder --chown=keryx:keryx /app/static static
+COPY --from=builder --chown=keryx:keryx /app/begin.mp4 begin.mp4
 RUN chown -R keryx:keryx /app
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
