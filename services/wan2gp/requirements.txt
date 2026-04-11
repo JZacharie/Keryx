@@ -6,7 +6,7 @@ transformers==4.38.2
 accelerate==0.27.2
 safetensors==0.4.2
 pillow==10.2.0
-python-multipart==0.0.9
+python-multipart==0.0.26
 boto3==1.42.87
 pydantic==2.6.1
 huggingface-hub==0.36.2
