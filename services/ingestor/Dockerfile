@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && update-ca-certificates
 
 WORKDIR /app
-RUN useradd -r -s /bin/false keryx && chown -R keryx:keryx /app
+RUN groupadd -g 1000 keryx && useradd -r -u 1000 -g keryx -s /bin/false keryx && chown -R keryx:keryx /app
 
 ENV REDIS_URL=redis://localhost:6379
 ENV S3_BUCKET=keryx-raw

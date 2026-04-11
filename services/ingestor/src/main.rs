@@ -37,6 +37,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     use std::io::Write;
+    // Force immediate stderr output for debugging
+    eprintln!(">>> KERYX INGESTOR: main() reached <<<");
+    std::io::stderr().flush().unwrap();
+
     println!(">>> KERYX INGESTOR STARTING UP <<<");
     std::io::stdout().flush().unwrap();
     tracing::info!("Tracing initialized at TRACE level.");
