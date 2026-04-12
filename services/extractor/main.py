@@ -1,6 +1,6 @@
 """
-keryx-extractor — Service de téléchargement vidéo et extraction audio.
-POST /extract : yt-dlp → S3 (vidéo + audio)
+keryx-extractor - Video download and audio extraction service.
+POST /extract : yt-dlp -> S3 (video + audio)
 """
 import os
 import uuid
@@ -59,9 +59,9 @@ async def upload_file(local_path: str, s3_key: str, content_type: str) -> str:
 class ExtractRequest(BaseModel):
     url: str
     job_id: str
-    # Optionnel : forcer le format de sortie
+    # Optional: force output format
     audio_format: str = "wav"
-    # Optionnel : limiter la qualité vidéo pour gagner du temps
+    # Optional: limit video quality to save time
     video_quality: str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
 
 
@@ -87,7 +87,7 @@ async def extract(req: ExtractRequest):
 
     tmp_dir = tempfile.mkdtemp(prefix=f"keryx_extract_{request_id}_")
     try:
-        # ── 1. Téléchargement avec yt-dlp ──────────────────────────────────
+        # -- 1. Download with yt-dlp ----------------------------------
         video_path = os.path.join(tmp_dir, "video.mp4")
         audio_wav = os.path.join(tmp_dir, "audio.wav")
 
@@ -109,13 +109,13 @@ async def extract(req: ExtractRequest):
             raise HTTPException(500, f"yt-dlp failed: {result.stderr[-500:]}")
 
         if not os.path.exists(video_path):
-            # Cherche le fichier avec un nom alternatif
+            # Try to find file with alternative name
             mp4_files = list(Path(tmp_dir).glob("*.mp4"))
             if not mp4_files:
                 raise HTTPException(500, "yt-dlp did not produce any mp4 file")
             video_path = str(mp4_files[0])
 
-        # Lecture des métadonnées
+        # Metadata reading
         title = "unknown"
         duration = 0.0
         title_file = os.path.join(tmp_dir, "title.txt")
@@ -130,7 +130,7 @@ async def extract(req: ExtractRequest):
 
         logger.info(f"[{request_id}] Downloaded: '{title}' ({duration}s)")
 
-        # ── 2. Extraction audio avec ffmpeg ────────────────────────────────
+        # -- 2. Audio extraction with ffmpeg --------------------------------
         logger.info(f"[{request_id}] Extracting audio to WAV...")
         ffmpeg_cmd = [
             "ffmpeg", "-y",
@@ -147,7 +147,7 @@ async def extract(req: ExtractRequest):
         if result.returncode != 0:
             raise HTTPException(500, f"ffmpeg audio extraction failed: {result.stderr.decode()[-500:]}")
 
-        # ── 3. Upload vers S3 ──────────────────────────────────────────────
+        # -- 3. Upload to S3 ----------------------------------------------
         logger.info(f"[{request_id}] Uploading video and audio to S3...")
         video_key = f"jobs/{req.job_id}/source/video.mp4"
         audio_key = f"jobs/{req.job_id}/source/audio.wav"
