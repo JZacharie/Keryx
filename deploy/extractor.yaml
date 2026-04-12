@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keryx-extractor
+  namespace: keryx
+  labels:
+    app.kubernetes.io/component: extractor
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: extractor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: extractor
+    spec:
+      imagePullSecrets:
+        - name: ghcr-login
+      containers:
+        - name: extractor
+          image: ghcr.io/jzacharie/keryx-extractor:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8010
+          env:
+            - name: S3_ENDPOINT
+              value: "https://minio-170-api.zacharie.org"
+            - name: S3_BUCKET
+              value: "keryx"
+            - name: RUST_LOG
+              value: "info"
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keryx-extractor
+  namespace: keryx
+spec:
+  selector:
+    app.kubernetes.io/component: extractor
+  ports:
+    - port: 8010
+      targetPort: 8010
