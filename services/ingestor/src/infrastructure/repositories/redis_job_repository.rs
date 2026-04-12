@@ -39,4 +39,22 @@ impl JobRepository for RedisJobRepository {
         job.status = status;
         self.save(&job).await
     }
+
+    async fn append_log(&self, id: Uuid, message: &str) -> Result<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("log:{}", id);
+        let timestamp = chrono::Utc::now().format("%H:%M:%S").to_string();
+        let entry = format!("[{}] {}", timestamp, message);
+        let _: () = conn.rpush(&key, &entry).await?;
+        // TTL 24h pour le nettoyage automatique
+        let _: () = conn.expire(&key, 86400).await?;
+        Ok(())
+    }
+
+    async fn get_logs(&self, id: Uuid) -> Result<Vec<String>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let key = format!("log:{}", id);
+        let logs: Vec<String> = conn.lrange(&key, 0, -1).await?;
+        Ok(logs)
+    }
 }

@@ -8,4 +8,8 @@ pub trait JobRepository: Send + Sync {
     async fn save(&self, job: &Job) -> Result<()>;
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Job>>;
     async fn update_status(&self, id: Uuid, status: crate::domain::entities::job::JobStatus) -> Result<()>;
+    /// Append a log line for a job (stored separately in Redis for streaming)
+    async fn append_log(&self, id: Uuid, message: &str) -> Result<()>;
+    /// Retrieve all log lines for a job
+    async fn get_logs(&self, id: Uuid) -> Result<Vec<String>>;
 }
