@@ -61,10 +61,9 @@ COPY --from=builder --chown=keryx:keryx /app/services/orchestrator/begin.mp4 beg
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 FROM runner AS release-ci
-ARG PREBUILT_BINARY
+ARG PREBUILT_BINARY=bin/keryx-ingestor
 COPY static static
-COPY begin.mp4 begin.mp4
 COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
-RUN chmod 755 /usr/local/bin/keryx-ingestor
+RUN chmod 755 /usr/local/bin/keryx-ingestor && chown keryx:keryx /usr/local/bin/keryx-ingestor
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
