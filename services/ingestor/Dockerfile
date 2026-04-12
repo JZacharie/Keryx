@@ -22,9 +22,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Ensure user keryx exists with UID 1000, or reuse existing user with that UID
-RUN if ! getent group 1000; then groupadd -g 1000 keryx; fi && \
-    if ! getent passwd 1000; then useradd -r -u 1000 -g 1000 -s /bin/false keryx; fi && \
+# Ensure user keryx exists with UID 1000
+RUN if getent passwd 1000; then \
+        existing_user=$(getent passwd 1000 | cut -d: -f1); \
+        usermod -l keryx $existing_user; \
+    else \
+        groupadd -g 1000 keryx && \
+        useradd -r -u 1000 -g keryx -s /bin/false keryx; \
+    fi && \
     chown -R 1000:1000 /app
 
 ENV REDIS_URL=redis://localhost:6379 \
@@ -44,10 +49,17 @@ USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 
 # --- Full Build ---
-FROM lukemathwalker/cargo-chef:latest-rust-1.91.1-slim AS chef
+FROM ubuntu:24.04 AS chef
 WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev curl clang libclang-dev llvm-dev libopencv-dev mold sccache \
+
+# Install system dependencies and Rust
+RUN apt-get update && apt-get install -y \
+    pkg-config libssl-dev curl clang libclang-dev llvm-dev libopencv-dev mold sccache ca-certificates \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.91.1 \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cargo install cargo-chef --version 0.1.73
 
 ENV RUSTC_WRAPPER="sccache"
 ENV SCCACHE_DIR="/app/.sccache"
