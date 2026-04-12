@@ -92,6 +92,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.orchestrator == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-24.04
+    env:
+      CARGO_HOME: /home/runner/.cargo
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -99,41 +103,31 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache dependencies (cargo-chef)
+      - name: Restore Cargo cache (registry + build artefacts)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: keryx-ingestor
+          cache-on-failure: true
+
+      - name: Cache cargo-chef binary
+        id: cache-chef
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-chef-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-chef-
+          path: ~/.cargo/bin/cargo-chef
+          key: ${{ runner.os }}-cargo-chef-bin-0.1.77
 
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build.yml') }}
-
-      - name: Install system dependencies (OpenCV & Clang)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libopencv-dev clang libclang-dev mold
-
-      - name: Install cargo-chef
-        run: |
-          if ! command -v cargo-chef &> /dev/null; then
-            cargo install cargo-chef
-          fi
+      - name: Install cargo-chef (if not cached)
+        if: steps.cache-chef.outputs.cache-hit != 'true'
+        run: cargo install cargo-chef --version 0.1.77 --locked
 
       - name: Cargo Chef Prepare
         run: cargo chef prepare --recipe-path recipe.json
 
-      - name: Cargo Chef Cook (Cache warmup)
+      - name: Cargo Chef Cook (cache dep compilation)
         run: cargo chef cook --release --recipe-path recipe.json
 
-      - name: Build Rust binary (Actual build)
+      - name: Build Rust binary
         run: |
           cargo build --release --bin keryx-ingestor
           ls -lh target/release/keryx-ingestor

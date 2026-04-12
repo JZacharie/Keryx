@@ -3,6 +3,9 @@ name = "keryx-core"
 version = "0.4.0"
 edition = "2024"
 
+[lib]
+name = "keryx_core"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
