@@ -17,9 +17,9 @@ export const metadata: Metadata = {
   title: "Keryx | Orchestrateur Vidéo Intelligent",
   description: "Plateforme de monitoring et de processing vidéo distribué",
   icons: {
-    icon: "https://filippinistudio.com/wp-content/uploads/2025/05/keryx-design-logo-mark-inverted-rgb-900px-w-72ppi-610x1024.png",
-    shortcut: "https://filippinistudio.com/wp-content/uploads/2025/05/keryx-design-logo-mark-inverted-rgb-900px-w-72ppi-610x1024.png",
-    apple: "https://filippinistudio.com/wp-content/uploads/2025/05/keryx-design-logo-mark-inverted-rgb-900px-w-72ppi-610x1024.png",
+    icon: "/keryx.png",
+    shortcut: "/keryx.png",
+    apple: "/keryx.png",
   },
 };
 
