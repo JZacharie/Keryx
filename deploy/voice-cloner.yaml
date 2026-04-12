@@ -30,6 +30,8 @@ spec:
         ports:
         - containerPort: 9880
         env:
++        - name: LOG_LEVEL
++          value: "debug"
         - name: COQUI_TOS_AGREED
           value: "1"
         - name: S3_ENDPOINT
