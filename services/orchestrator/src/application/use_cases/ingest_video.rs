@@ -100,21 +100,21 @@ impl IngestVideoUseCase {
 
         // Phase 1 : Extraction (yt-dlp + ffmpeg distant)
         self.log(job_id, "Phase 1 : Extraction audio/vidéo via microservice...").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-extractor").await;
+        self.scaling_repo.scale_up("keryx", "keryx-extractor").await?;
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
         let ext_res = self.extractor.extract(&job.source_url, &job_id.to_string()).await?;
         self.log(job_id, &format!("Phase 1 terminée. Titre: {}", ext_res.title)).await;
 
         // Phase 2 : Transcription STT
         self.log(job_id, "Phase 2 : Transcription via microservice (Whisper)...").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await;
+        self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
         self.job_repo.update_status(job_id, JobStatus::Transcribing).await?;
         let trans_res = self.voice_extractor.perform_transcription(&ext_res.audio_url, &job_id.to_string(), None).await?;
         self.log(job_id, &format!("Phase 2 : Transcription terminée — {} segments.", trans_res.segments.len())).await;
 
         // Phase 3 : Analyse et nettoyage des slides
         self.log(job_id, "Phase 3 : Détection des slides et nettoyage watermark...").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-video-composer").await;
+        self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
         self.job_repo.update_status(job_id, JobStatus::Analyzing).await?;
         
         let slide_res = self.video_composer.detect_slides(&job_id.to_string(), &ext_res.video_url).await?;
@@ -145,8 +145,8 @@ impl IngestVideoUseCase {
 
         // Phase 4 : Traduction et Génération Audio (FR + Clonage)
         self.log(job_id, "Phase 4 : Traduction et génération audio haute qualité...").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await;
+        self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
+        self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
         self.job_repo.update_status(job_id, JobStatus::Translating).await?;
         
         let trans_lang_res = self.voice_extractor.translate(trans_res.segments.clone(), "fr", &job_id.to_string()).await?;
@@ -165,7 +165,7 @@ impl IngestVideoUseCase {
 
         // Phase 5 : Composition Vidéo
         self.log(job_id, "Phase 5 : Montage final de la vidéo...").await;
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-video-composer").await;
+        self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
         self.job_repo.update_status(job_id, JobStatus::Composing).await?;
         
         let composer_slides: Vec<ComposerSlideInput> = slides_input.iter().map(|s| {
@@ -184,7 +184,7 @@ impl IngestVideoUseCase {
         // Phase 6 : Animations Bonus (SVD) sur la première slide
         if let Some(first_slide) = slides_input.first() {
             self.log(job_id, "Phase 6 : Génération d'une animation bonus (SVD) pour l'intro...").await;
-            let _ = self.scaling_repo.scale_up("keryx", "keryx-video-generator").await;
+            self.scaling_repo.scale_up("keryx", "keryx-video-generator").await?;
             let _ = self.video_generator.animate(&job_id.to_string(), &first_slide.image_url).await;
         }
 

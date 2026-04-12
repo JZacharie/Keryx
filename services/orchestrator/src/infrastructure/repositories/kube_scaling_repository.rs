@@ -37,11 +37,15 @@ impl ScalingRepository for KubeScalingRepository {
         
         // KEDA Compatibility: If there is an associated HTTPScaledObject, we must set its minReplicas to 1
         // to prevent KEDA from scaling the deployment back to 0 due to lack of traffic.
-        if deployment_name == "openai-whisper-asr-webservice" {
-            if let Err(e) = self.patch_httpscaledobject_min_replicas(namespace, "openai-whisper-asr-webservice-http", 1).await {
-                tracing::warn!("Failed to patch HTTPScaledObject for {}: {}", deployment_name, e);
-            }
-        } else if deployment_name == "whisperx" {
+        // We attempt a generic patch based on the deployment name with a "-http" suffix.
+        let hso_name = format!("{}-http", deployment_name);
+        if let Err(e) = self.patch_httpscaledobject_min_replicas(namespace, &hso_name, 1).await {
+            // We log as debug because not all services necessarily have an HTTPScaledObject
+            tracing::debug!("No HTTPScaledObject found or failed to patch for {}: {}", hso_name, e);
+        }
+        
+        // Specific legacy/external overrides if they don't follow the pattern
+        if deployment_name == "whisperx" {
              if let Err(e) = self.patch_httpscaledobject_min_replicas(namespace, "whisperx-http", 1).await {
                 tracing::warn!("Failed to patch HTTPScaledObject for {}: {}", deployment_name, e);
             }
@@ -56,8 +60,13 @@ impl ScalingRepository for KubeScalingRepository {
             let d = deployments.get(deployment_name).await?;
             if let Some(status) = d.status {
                 if status.ready_replicas.unwrap_or(0) >= 1 {
-                    tracing::info!("Deployment {}/{} is ready! Waiting extra 20s for ML service initialization...", namespace, deployment_name);
-                    sleep(Duration::from_secs(20)).await;
+                    tracing::info!("Deployment {}/{} is ready at K8s level. Waiting for service response...", namespace, deployment_name);
+                    
+                    // We try to ping the service to ensure the ML model is actually loaded in VRAM
+                    if let Err(e) = self.wait_for_service_ping(deployment_name).await {
+                        tracing::warn!("Service {}/{} ready replicas > 0 but health check failed: {}. Continuing anyway...", namespace, deployment_name, e);
+                    }
+                    
                     return Ok(());
                 }
             }
@@ -76,7 +85,9 @@ impl ScalingRepository for KubeScalingRepository {
 
         // If we reach here, it's a timeout.
         // Before returning error, try to capture pod status for debugging
-        let label_selector = format!("app={},app.kubernetes.io/name={}", deployment_name, deployment_name);
+        // Try to identify component name from deployment name (e.g. keryx-extractor -> extractor)
+        let component_name = deployment_name.split('-').last().unwrap_or(deployment_name);
+        let label_selector = format!("app.kubernetes.io/component={}", component_name);
         if let Ok(pods) = Api::<Pod>::namespaced(self.client.clone(), namespace).list(&kube::api::ListParams::default().labels(&label_selector)).await {
             for p in pods {
                 let pod_name = p.metadata.name.clone().unwrap_or_else(|| "unknown".to_string());
@@ -136,10 +147,12 @@ impl ScalingRepository for KubeScalingRepository {
         let patch = json!({ "spec": { "replicas": 0 } });
         deployments.patch(deployment_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
 
-        // Reset KEDA minReplicas
-        if deployment_name == "openai-whisper-asr-webservice" {
-            let _ = self.patch_httpscaledobject_min_replicas(namespace, "openai-whisper-asr-webservice-http", 0).await;
-        } else if deployment_name == "whisperx" {
+        // Reset KEDA minReplicas generically
+        let hso_name = format!("{}-http", deployment_name);
+        let _ = self.patch_httpscaledobject_min_replicas(namespace, &hso_name, 0).await;
+
+        // Specific legacy/external overrides
+        if deployment_name == "whisperx" {
             let _ = self.patch_httpscaledobject_min_replicas(namespace, "whisperx-http", 0).await;
         }
         
