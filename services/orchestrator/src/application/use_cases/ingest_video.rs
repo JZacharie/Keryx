@@ -9,14 +9,14 @@ use keryx_core::domain::entities::job::JobStatus;
 
 use crate::infrastructure::clients::extractor::ExtractorClient;
 use crate::infrastructure::clients::dewatermark::DewatermarkClient;
-use crate::infrastructure::clients::voice_extractor::{VoiceExtractorClient, Segment};
+use crate::infrastructure::clients::voice_extractor::VoiceExtractorClient;
 use crate::infrastructure::clients::voice_cloner::VoiceClonerClient;
 use crate::infrastructure::clients::video_composer::{VideoComposerClient, SlideInput as ComposerSlideInput};
 use crate::infrastructure::clients::video_generator::VideoGeneratorClient;
 
 pub struct IngestVideoUseCase {
     job_repo: Arc<dyn JobRepository>,
-    storage_repo: Arc<dyn StorageRepository>,
+    _storage_repo: Arc<dyn StorageRepository>,
     scaling_repo: Arc<dyn ScalingRepository>,
     notification_repo: Arc<dyn NotificationRepository>,
     
@@ -44,7 +44,7 @@ impl IngestVideoUseCase {
     ) -> Self {
         Self { 
             job_repo, 
-            storage_repo, 
+            _storage_repo: storage_repo, 
             scaling_repo, 
             notification_repo,
             extractor,
@@ -120,7 +120,7 @@ impl IngestVideoUseCase {
         let slide_res = self.video_composer.detect_slides(&job_id.to_string(), &ext_res.video_url).await?;
         self.log(job_id, &format!("Phase 3 : {} slides détectées. Nettoyage en cours...", slide_res.slides.len())).await;
 
-        let _ = self.scaling_repo.scale_up("keryx", "keryx-dewatermark").await;
+        self.scaling_repo.scale_up("keryx", "keryx-dewatermark").await?;
 
         let mut slides_input = Vec::new();
         for slide in slide_res.slides {

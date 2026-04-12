@@ -1,7 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
-use std::sync::Arc;
 
 #[derive(Debug, Serialize)]
 pub struct ExtractRequest {

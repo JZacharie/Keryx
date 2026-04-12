@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use keryx_core::domain::ports::scaling_repository::ScalingRepository;
 use bollard::Docker;
-use bollard::container::StartContainerOptions;
 use bollard::container::StopContainerOptions;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -32,11 +31,25 @@ impl ScalingRepository for ComposeScalingRepository {
             }
         }
         
+        // Discovery port for compose: try to find it or use a default.
+        // Actually, we'll try to use a convention or hardcoded mapping if needed, 
+        // but for now we follow the same pattern as Kube where the port is passed.
+        let port = match deployment_name {
+            "keryx-extractor" => 8010,
+            "keryx-dewatermark" => 8011,
+            "keryx-voice-extractor" => 8012,
+            "keryx-video-composer" => 8013,
+            "keryx-video-generator" => 8014,
+            "keryx-voice-cloner" => 9880,
+            "keryx-pptx-builder" => 8002,
+            _ => 80,
+        };
+
         // Wait for ready via ping
-        self.wait_for_service_ping(deployment_name).await
+        self.wait_for_service_ping(deployment_name, port).await
     }
 
-    async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {
+    async fn wait_for_service_ping(&self, service_name: &str, port: u16) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()?;
@@ -49,7 +62,7 @@ impl ScalingRepository for ComposeScalingRepository {
         
         while attempts < 30 { // 1 minute timeout for local
             for endpoint in &endpoints {
-                let url = format!("http://{}{}", service_name, endpoint);
+                let url = format!("http://{}:{}{}", service_name, port, endpoint);
                 match client.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
                         tracing::info!("Service {} is UP!", service_name);

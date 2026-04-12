@@ -4,7 +4,7 @@ use keryx_core::domain::ports::scaling_repository::ScalingRepository;
 use kube::{Client, Api, core::DynamicObject, discovery::ApiResource};
 use kube::api::{Patch, PatchParams, GroupVersionKind};
 use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Pod, Service};
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -62,9 +62,16 @@ impl ScalingRepository for KubeScalingRepository {
                 if status.ready_replicas.unwrap_or(0) >= 1 {
                     tracing::info!("Deployment {}/{} is ready at K8s level. Waiting for service response...", namespace, deployment_name);
                     
-                    // We try to ping the service to ensure the ML model is actually loaded in VRAM
-                    if let Err(e) = self.wait_for_service_ping(deployment_name).await {
-                        tracing::warn!("Service {}/{} ready replicas > 0 but health check failed: {}. Continuing anyway...", namespace, deployment_name, e);
+                    // We try to ping the service to ensure the ML model is actually loaded in VRAM.
+                    // We discover the port from the Service object.
+                    let service_port = if let Ok(s) = Api::<Service>::namespaced(self.client.clone(), namespace).get(deployment_name).await {
+                         s.spec.and_then(|spec| spec.ports.and_then(|p| p.first().map(|p| p.port))).unwrap_or(80) as u16
+                    } else {
+                        80
+                    };
+
+                    if let Err(e) = self.wait_for_service_ping(deployment_name, service_port).await {
+                        tracing::warn!("Service {}/{} ready replicas > 0 but health check failed on port {}: {}. Continuing anyway...", namespace, deployment_name, service_port, e);
                     }
                     
                     return Ok(());
@@ -108,7 +115,7 @@ impl ScalingRepository for KubeScalingRepository {
         Err(anyhow!("Timeout waiting for deployment {}/{} to be ready after 10m", namespace, deployment_name))
     }
 
-    async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {
+    async fn wait_for_service_ping(&self, service_name: &str, port: u16) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .redirect(reqwest::redirect::Policy::limited(5))
@@ -120,7 +127,7 @@ impl ScalingRepository for KubeScalingRepository {
         
         while attempts < 60 { // 5 minutes (60 * 5s)
             for endpoint in &endpoints {
-                let url = format!("http://{}{}", service_name, endpoint);
+                let url = format!("http://{}:{}{}", service_name, port, endpoint);
                 match client.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
                         tracing::info!("Service {} responded to health check on {}!", service_name, endpoint);
