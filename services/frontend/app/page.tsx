@@ -1,313 +1,615 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Zap, 
-  Clock, 
-  CheckCircle2, 
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Plus,
+  Search,
+  Zap,
+  Clock,
+  CheckCircle2,
   AlertCircle,
   Link as LinkIcon,
   Play,
   Terminal,
-  Server
+  Server,
+  Globe,
+  X,
+  RefreshCw,
+  ChevronRight,
+  Activity,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Components
-const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
+// ─────────────────────────────────────────────
+// Types matching the real Rust backend
+// ─────────────────────────────────────────────
+type JobStatus =
+  | "Pending"
+  | "Processing"
+  | { Processing: string }
+  | "Completed"
+  | { Failed: string };
+
+interface StyleConfig {
+  prompt: string;
+  lora: string | null;
+}
+
+interface AssetMap {
+  lang: string;
+  s3_key: string;
+}
+
+interface Job {
+  id: string;
+  source_url: string;
+  target_langs: string[];
+  status: JobStatus;
+  style_config: StyleConfig;
+  assets_map: AssetMap[];
+}
+
+interface CreateJobPayload {
+  video_url: string;
+  target_langs: string[];
+  prompt?: string;
+  lora?: string;
+}
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ingestor.p.zacharie.org";
+
+function getStatusLabel(status: JobStatus): string {
+  if (status === "Pending") return "pending";
+  if (status === "Completed") return "completed";
+  if (typeof status === "object" && "Failed" in status) return "failed";
+  if (status === "Processing" || (typeof status === "object" && "Processing" in status))
+    return "processing";
+  return "pending";
+}
+
+function getStatusStep(status: JobStatus): string {
+  if (typeof status === "object" && "Processing" in status) return status.Processing;
+  return "";
+}
+
+// ─────────────────────────────────────────────
+// Subcomponents
+// ─────────────────────────────────────────────
+const StatusBadge = ({ status }: { status: JobStatus }) => {
+  const label = getStatusLabel(status);
+  const configs: Record<string, { bg: string; text: string; icon: React.ElementType }> = {
+    pending: { bg: "bg-slate-800 border-slate-700", text: "text-slate-400", icon: Clock },
+    processing: { bg: "bg-blue-950 border-blue-700", text: "text-blue-300", icon: Zap },
+    completed: { bg: "bg-emerald-950 border-emerald-700", text: "text-emerald-300", icon: CheckCircle2 },
+    failed: { bg: "bg-red-950 border-red-700", text: "text-red-400", icon: AlertCircle },
+  };
+  const cfg = configs[label] || configs.pending;
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${cfg.bg} ${cfg.text}`}>
+      <Icon className="w-3 h-3" />
+      {label}
+    </span>
+  );
+};
+
+const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  colorClass,
+}: {
+  title: string;
+  value: number | string;
+  icon: React.ElementType;
+  colorClass: string;
+}) => (
   <div className="glass rounded-2xl p-6 relative overflow-hidden group">
-    <div className={`absolute top-0 right-0 w-24 h-24 bg-${color}/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-${color}/20 transition-all`} />
+    <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-20 group-hover:opacity-30 transition-all ${colorClass}`} />
     <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 rounded-xl bg-${color}/10 text-${color}`}>
+      <div className={`p-3 rounded-xl ${colorClass} bg-opacity-10`}>
         <Icon className="w-6 h-6" />
       </div>
-      {trend && (
-        <span className="text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full">
-          {trend}
-        </span>
-      )}
     </div>
     <p className="text-slate-400 text-sm font-medium">{title}</p>
     <h3 className="text-3xl font-bold mt-1">{value}</h3>
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const configs: Record<string, { color: string, icon: any }> = {
-    pending: { color: "slate", icon: Clock },
-    processing: { color: "primary", icon: Zap },
-    completed: { color: "emerald", icon: CheckCircle2 },
-    failed: { color: "accent", icon: AlertCircle },
+// ─────────────────────────────────────────────
+// Log Drawer
+// ─────────────────────────────────────────────
+function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose: () => void }) {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [done, setDone] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const url = `${API_BASE}/api/jobs/${job.id}/logs`;
+    const es = new EventSource(url);
+
+    es.addEventListener("log", (e) => {
+      setLogs((prev) => [...prev, ...e.data.split("\n")]);
+    });
+    es.addEventListener("done", () => {
+      setDone(true);
+      es.close();
+    });
+    es.addEventListener("error", () => {
+      setLogs((prev) => [...prev, "[SSE disconnected]"]);
+      es.close();
+    });
+    return () => es.close();
+  }, [job.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  return (
+    <motion.div
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", damping: 25 }}
+      className="fixed inset-y-0 right-0 w-full max-w-2xl z-50 glass border-l border-white/10 flex flex-col"
+    >
+      <div className="flex items-center justify-between p-6 border-b border-white/10">
+        <div>
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-primary" />
+            Live Logs — Job {job.id.slice(0, 8)}
+          </h3>
+          <p className="text-xs text-slate-400 truncate mt-1">{job.source_url}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <StatusBadge status={job.status} />
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6 font-mono text-[12px] space-y-0.5">
+        {logs.length === 0 && !done && (
+          <div className="flex items-center gap-2 text-slate-500 animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Waiting for logs...
+          </div>
+        )}
+        {logs.map((line, i) => (
+          <p
+            key={i}
+            className={
+              line.includes("ERROR") || line.includes("error")
+                ? "text-red-400"
+                : line.includes("warn") || line.includes("WARN")
+                ? "text-amber-400"
+                : line.includes("✅") || line.includes("completed")
+                ? "text-emerald-400"
+                : "text-slate-300"
+            }
+          >
+            {line}
+          </p>
+        ))}
+        {done && (
+          <p className="text-emerald-400 font-bold mt-2">
+            ✅ Job finished
+          </p>
+        )}
+        <div ref={bottomRef} />
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Create Job Modal
+// ─────────────────────────────────────────────
+const LANGS = ["fr", "en", "es", "de", "it", "ja", "zh", "ar", "pt"];
+
+function CreateModal({
+  onClose,
+  onCreated,
+  apiKey,
+  setApiKey,
+}: {
+  onClose: () => void;
+  onCreated: (job: Job) => void;
+  apiKey: string;
+  setApiKey: (v: string) => void;
+}) {
+  const [videoUrl, setVideoUrl] = useState("");
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(["fr"]);
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const toggleLang = (lang: string) => {
+    setSelectedLangs((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
   };
 
-  const config = configs[status.toLowerCase()] || configs.pending;
-  const Icon = config.icon;
+  const handleSubmit = async () => {
+    if (!videoUrl.trim()) { setError("L'URL de la vidéo est requise."); return; }
+    if (selectedLangs.length === 0) { setError("Sélectionnez au moins une langue."); return; }
+    if (!apiKey.trim()) { setError("Une API Key est requise."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const payload: CreateJobPayload = {
+        video_url: videoUrl,
+        target_langs: selectedLangs,
+        ...(prompt ? { prompt } : {}),
+      };
+      const res = await fetch(`${API_BASE}/api/jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const { job_id } = await res.json();
+      // Fetch the job to get full details
+      const jobRes = await fetch(`${API_BASE}/api/jobs/${job_id}`);
+      const job: Job = await jobRes.json();
+      onCreated(job);
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-${config.color}/10 text-${config.color} border border-${config.color}/20`}>
-      <Icon className="w-3 h-3" />
-      {status}
-    </div>
-  );
-};
-
-export default function DashboardPage() {
-  const [activeJobs, setActiveJobs] = useState([]);
-  const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({ url: "", apiKey: "" });
-
-  return (
-    <div className="space-y-8 pb-10">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-4xl font-extrabold tracking-tight">Vue d'ensemble</h2>
-          <p className="text-slate-400 font-medium">Monitoring du processing vidéo distribué</p>
-        </div>
-        <button 
-          onClick={() => setIsCreating(true)}
-          className="bg-gradient-primary hover:scale-105 transition-transform px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20"
-        >
-          <Plus className="w-5 h-5" />
-          Nouveau Job
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+      />
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        className="glass max-w-lg w-full p-8 rounded-3xl relative z-10 border border-white/10"
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg transition-colors">
+          <X className="w-4 h-4" />
         </button>
-      </div>
+        <h3 className="text-2xl font-bold mb-1">Nouveau Job</h3>
+        <p className="text-slate-400 text-sm mb-6">Soumettez une vidéo à transcrire et dubber</p>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Jobs Totaux" value="24" icon={Server} color="primary" trend="+12%" />
-        <StatCard title="En cours" value="3" icon={Zap} color="secondary" />
-        <StatCard title="Taux de succès" value="98.2%" icon={CheckCircle2} color="emerald" trend="+2%" />
-        <StatCard title="Temps moyen" value="4.2m" icon={Clock} color="slate" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Jobs List */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <Activity className="text-primary w-5 h-5" />
-              Jobs Récents
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher..." 
-                  className="bg-white/5 border border-slate-700/50 rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-48"
-                />
-              </div>
-              <button className="p-2 glass-light rounded-lg hover:bg-white/10 transition-colors">
-                <Filter className="w-4 h-4 text-slate-400" />
-              </button>
+        <div className="space-y-5">
+          {/* URL */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">URL Source</label>
+            <div className="relative group">
+              <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-[#8A2BE2] transition-colors" />
+              <input
+                type="url"
+                placeholder="https://youtube.com/watch?v=..."
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl pl-11 pr-4 py-3.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all"
+              />
             </div>
           </div>
 
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <motion.div 
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="glass hover:bg-white/[0.04] transition-all p-5 rounded-2xl border border-white/5 group cursor-pointer"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700 relative">
-                    <img src={`https://picsum.photos/seed/${i+42}/200/200`} alt="thumbnail" className="object-cover w-full h-full opacity-60 group-hover:scale-110 transition-transform" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Play className="w-6 h-6 text-white/50 group-hover:text-white transition-colors" />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h4 className="font-bold truncate text-lg">Analyse Stratégique - Marketing Q4</h4>
-                      <StatusBadge status={i === 1 ? "processing" : "completed"} />
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-                      <span className="flex items-center gap-1">
-                        <LinkIcon className="w-3 h-3" />
-                        youtube.com/watch?v=...
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Il y a {i * 2} heures
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-slate-200">12.4 MB</div>
-                    <div className="text-[10px] text-slate-500 uppercase font-black mt-2">ID: {Math.random().toString(36).substr(2, 8)}</div>
-                  </div>
-                  <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ChevronRight className="w-5 h-5 text-slate-600" />
-                  </div>
-                </div>
-                {i === 1 && (
-                  <div className="mt-4 pt-4 border-t border-white/5">
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-primary font-bold">Transcription en cours...</span>
-                      <span className="text-slate-400">65%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: "65%" }}
-                        className="h-full bg-gradient-primary"
-                      />
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Sidebar Widgets */}
-        <div className="space-y-8">
-          {/* Node Health */}
-          <div className="glass rounded-2xl p-6">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Activity className="text-secondary w-5 h-5" />
-              État des Noeuds
-            </h3>
-            <div className="space-y-4">
-              {[
-                { name: "SVD Engine (GPU)", status: "healthy", load: "78%" },
-                { name: "Whisper ASR", status: "healthy", load: "12%" },
-                { name: "Dewatermark CV", status: "busy", load: "94%" },
-                { name: "Orchestrator", status: "healthy", load: "5%" },
-              ].map((node) => (
-                <div key={node.name} className="flex items-center justify-between">
-                  <div className="text-sm font-medium">{node.name}</div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-[10px] text-slate-500 font-bold">{node.load}</div>
-                    <div className={`w-2 h-2 rounded-full ${node.status === 'healthy' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'}`} />
-                  </div>
-                </div>
+          {/* Langues */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
+              Langues cibles ({selectedLangs.length} sélectionnée{selectedLangs.length > 1 ? "s" : ""})
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {LANGS.map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => toggleLang(lang)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all border ${
+                    selectedLangs.includes(lang)
+                      ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
+                      : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
+                  }`}
+                >
+                  {lang}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Quick Terminal */}
-          <div className="glass rounded-2xl p-6 border-l-4 border-primary/40">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Terminal className="text-primary w-5 h-5" />
-              Live Logs
-            </h3>
-            <div className="font-mono text-[10px] space-y-1 h-48 overflow-y-auto text-slate-300">
-              <p className="text-slate-500">[10:45:02] Initializing cluster connect...</p>
-              <p className="text-emerald-500">[10:45:03] Redis pipeline active.</p>
-              <p className="text-slate-300">[10:45:04] Job 872a1bc: Phase 1 started.</p>
-              <p className="text-slate-300">[10:45:10] Job 872a1bc: Downloading 48.2MB...</p>
-              <p className="text-secondary">[10:45:22] Extractor: Success.</p>
-              <p className="text-slate-300">[10:45:23] Job 872a1bc: Starting Whisper STT...</p>
-              <p className="text-slate-500 animate-pulse">_</p>
-            </div>
+          {/* Prompt optionnel */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
+              Prompt style <span className="text-slate-600 normal-case font-normal">(optionnel)</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Modern professional SaaS presentation..."
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all text-sm resize-none"
+            />
+          </div>
+
+          {/* API Key */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">API Key</label>
+            <input
+              type="password"
+              placeholder="Bearer token..."
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all text-sm"
+            />
+          </div>
+
+          {error && (
+            <p className="text-red-400 text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </p>
+          )}
+
+          <div className="pt-2 flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 px-4 py-3 rounded-xl bg-gradient-primary font-bold shadow-lg shadow-[#8A2BE2]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {loading ? "Soumission..." : "Démarrer"}
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* Creation Modal */}
-      <AnimatePresence>
-        {isCreating && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsCreating(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="glass max-w-lg w-full p-8 rounded-3xl relative z-10 border border-white/10"
-            >
-              <h3 className="text-2xl font-bold mb-2">Lancer un nouveau Job</h3>
-              <p className="text-slate-400 text-sm mb-6">Collez l'URL de la vidéo source (YouTube, Twitter, etc.)</p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Source URL</label>
-                  <div className="relative group">
-                    <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-primary transition-colors" />
-                    <input 
-                      type="text" 
-                      placeholder="https://youtube.com/..." 
-                      className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">API Key</label>
-                  <input 
-                    type="password" 
-                    placeholder="Votre clé Bearer" 
-                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
-                  />
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <button 
-                    onClick={() => setIsCreating(false)}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all"
-                  >
-                    Annuler
-                  </button>
-                  <button className="flex-1 px-4 py-3 rounded-xl bg-gradient-primary font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                    Démarrer le Traitement
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </motion.div>
     </div>
   );
 }
 
-function ChevronRight(props: any) {
+// ─────────────────────────────────────────────
+// Job Card
+// ─────────────────────────────────────────────
+function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
+  const label = getStatusLabel(job.status);
+  const step = getStatusStep(job.status);
+  const isProcessing = label === "processing";
+
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={onClick}
+      className="glass hover:bg-white/[0.04] transition-all p-5 rounded-2xl border border-white/5 group cursor-pointer"
     >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
+      <div className="flex items-center gap-4">
+        <div className="w-14 h-14 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 relative overflow-hidden">
+          <Globe className="w-7 h-7 text-slate-600" />
+          {isProcessing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+              <Loader2 className="w-5 h-5 text-[#8A2BE2] animate-spin" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h4 className="font-bold truncate text-base">{job.source_url}</h4>
+            <StatusBadge status={job.status} />
+          </div>
+          <div className="flex items-center gap-4 text-xs text-slate-500 font-medium flex-wrap">
+            <span className="flex items-center gap-1">
+              <Globe className="w-3 h-3" />
+              {job.target_langs.join(", ")}
+            </span>
+            <span className="font-mono text-[10px] text-slate-600">
+              {job.id.slice(0, 8)}
+            </span>
+            {step && (
+              <span className="text-blue-400 truncate max-w-[200px]">{step}</span>
+            )}
+          </div>
+        </div>
+        <div className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <ChevronRight className="w-5 h-5 text-slate-500" />
+        </div>
+      </div>
+
+      {isProcessing && (
+        <div className="mt-4 pt-4 border-t border-white/5">
+          <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+            <motion.div
+              animate={{ x: ["−100%", "100%"] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+              className="h-full w-1/3 bg-gradient-primary rounded-full"
+            />
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
 }
 
-function Activity(props: any) {
+// ─────────────────────────────────────────────
+// Main Dashboard
+// ─────────────────────────────────────────────
+export default function DashboardPage() {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [apiKey, setApiKey] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("keryx_api_key") || "" : ""
+  );
+
+  // Persist API key
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("keryx_api_key", apiKey);
+  }, [apiKey]);
+
+  const fetchJob = useCallback(async (id: string): Promise<Job | null> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/jobs/${id}`);
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const refreshJobs = useCallback(async () => {
+    if (jobs.length === 0) return;
+    const updated = await Promise.all(jobs.map((j) => fetchJob(j.id)));
+    setJobs((prev) =>
+      prev.map((j, i) => updated[i] || j)
+    );
+    // Refresh selected job
+    if (selectedJob) {
+      const fresh = await fetchJob(selectedJob.id);
+      if (fresh) setSelectedJob(fresh);
+    }
+  }, [jobs, selectedJob, fetchJob]);
+
+  // Auto-refresh when processing jobs exist
+  useEffect(() => {
+    const hasActive = jobs.some((j) => getStatusLabel(j.status) === "processing");
+    if (!hasActive) return;
+    const interval = setInterval(refreshJobs, 3000);
+    return () => clearInterval(interval);
+  }, [jobs, refreshJobs]);
+
+  const handleJobCreated = (job: Job) => {
+    setJobs((prev) => [job, ...prev]);
+    setSelectedJob(job);
+  };
+
+  const filteredJobs = jobs.filter(
+    (j) =>
+      j.source_url.toLowerCase().includes(search.toLowerCase()) ||
+      j.id.toLowerCase().includes(search.toLowerCase()) ||
+      j.target_langs.some((l) => l.includes(search.toLowerCase()))
+  );
+
+  const stats = {
+    total: jobs.length,
+    active: jobs.filter((j) => getStatusLabel(j.status) === "processing").length,
+    done: jobs.filter((j) => getStatusLabel(j.status) === "completed").length,
+    failed: jobs.filter((j) => getStatusLabel(j.status) === "failed").length,
+  };
+
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.48 12H2" />
-    </svg>
+    <div className="space-y-8 pb-10">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 className="text-4xl font-extrabold tracking-tight">Vue d&apos;ensemble</h2>
+          <p className="text-slate-400 font-medium">Pipeline IA de dubbingK vidéo distribué</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={refreshJobs}
+            disabled={loading}
+            className="p-2.5 glass rounded-xl hover:bg-white/10 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={() => setIsCreating(true)}
+            className="bg-gradient-primary hover:scale-105 transition-transform px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-[#8A2BE2]/20"
+          >
+            <Plus className="w-5 h-5" />
+            Nouveau Job
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Jobs" value={stats.total} icon={Server} colorClass="bg-[#8A2BE2] text-[#8A2BE2]" />
+        <StatCard title="En cours" value={stats.active} icon={Zap} colorClass="bg-blue-500 text-blue-400" />
+        <StatCard title="Complétés" value={stats.done} icon={CheckCircle2} colorClass="bg-emerald-500 text-emerald-400" />
+        <StatCard title="Échoués" value={stats.failed} icon={AlertCircle} colorClass="bg-red-500 text-red-400" />
+      </div>
+
+      {/* Jobs List */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <Activity className="text-[#8A2BE2] w-5 h-5" />
+            Jobs
+          </h3>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Rechercher URL, ID, langue..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-white/5 border border-slate-700/50 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all w-64"
+            />
+          </div>
+        </div>
+
+        <AnimatePresence mode="popLayout">
+          {filteredJobs.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass rounded-2xl p-16 text-center"
+            >
+              <Server className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+              <p className="text-slate-500 font-medium">Aucun job. Cliquez sur &quot;Nouveau Job&quot; pour commencer.</p>
+            </motion.div>
+          ) : (
+            filteredJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                onClick={() => setSelectedJob(job)}
+              />
+            ))
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {isCreating && (
+          <CreateModal
+            onClose={() => setIsCreating(false)}
+            onCreated={handleJobCreated}
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+          />
+        )}
+        {selectedJob && (
+          <LogDrawer
+            job={selectedJob}
+            apiKey={apiKey}
+            onClose={() => setSelectedJob(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
