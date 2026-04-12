@@ -144,7 +144,8 @@ jobs:
   # ============================================================================
   build-ingestor:
     name: 🐳 Build Ingestor Image
-    needs: build-rust
+    needs: changes
+    if: needs.changes.outputs.orchestrator == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -152,12 +153,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Download binary
-        uses: actions/download-artifact@v8
-        with:
-          name: keryx-ingestor-binary
-          path: services/orchestrator/bin/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -181,13 +176,12 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value={{date 'YYYYMMDD'}}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (full in-Docker build)
         uses: docker/build-push-action@v7
         with:
-          context: ./services/orchestrator
-          target: release-ci
-          build-args: |
-            PREBUILT_BINARY=bin/keryx-ingestor
+          context: .
+          file: services/orchestrator/Dockerfile
+          target: release
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
