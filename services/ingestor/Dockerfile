@@ -54,16 +54,11 @@ ENV SCCACHE_DIR="/app/.sccache"
 
 
 FROM chef AS planner
-WORKDIR /app
 COPY . .
-WORKDIR /app/services/ingestor
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-WORKDIR /app
-COPY services/keryx-core services/keryx-core
-WORKDIR /app/services/ingestor
-COPY --from=planner /app/services/ingestor/recipe.json recipe.json
+COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/app/.sccache \
     cargo chef cook --release --recipe-path recipe.json
 COPY . .
