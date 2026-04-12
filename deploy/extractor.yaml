@@ -24,6 +24,8 @@ spec:
           ports:
             - containerPort: 8010
           env:
++            - name: LOG_LEVEL
++              value: "debug"
             - name: S3_ENDPOINT
               value: "https://minio-170-api.zacharie.org"
             - name: S3_BUCKET

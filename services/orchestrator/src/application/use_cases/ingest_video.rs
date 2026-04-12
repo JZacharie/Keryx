@@ -103,6 +103,8 @@ impl IngestVideoUseCase {
         self.scaling_repo.scale_up("keryx", "keryx-extractor").await?;
         self.job_repo.update_status(job_id, JobStatus::Downloading).await?;
         let ext_res = self.extractor.extract(&job.source_url, &job_id.to_string()).await?;
+        self.log(job_id, "Extraction terminée. Libération du worker extractor...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-extractor").await;
         self.log(job_id, &format!("Phase 1 terminée. Titre: {}", ext_res.title)).await;
 
         // Phase 2 : Transcription STT
@@ -110,6 +112,8 @@ impl IngestVideoUseCase {
         self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
         self.job_repo.update_status(job_id, JobStatus::Transcribing).await?;
         let trans_res = self.voice_extractor.perform_transcription(&ext_res.audio_url, &job_id.to_string(), None).await?;
+        self.log(job_id, "Transcription terminée. Libération du worker voice-extractor...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
         self.log(job_id, &format!("Phase 2 : Transcription terminée — {} segments.", trans_res.segments.len())).await;
 
         // Phase 3 : Analyse et nettoyage des slides
@@ -132,6 +136,8 @@ impl IngestVideoUseCase {
                 timestamp: slide.timestamp,
             });
         }
+        self.log(job_id, "Nettoyage slides terminé. Libération du worker dewatermark...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-dewatermark").await;
 
         // Calcul des durées par slide
         for i in 0..slides_input.len() {
@@ -158,6 +164,9 @@ impl IngestVideoUseCase {
             let clone_res = self.voice_cloner.perform_cloning(&text, "fr", &ext_res.audio_url, &job_id.to_string()).await?;
             fr_audio_urls.push(clone_res.url);
         }
+        self.log(job_id, "Clonage vocal terminé. Libération des workers voice-extractor et voice-cloner...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
 
         // Concaténation audio finale
         self.log(job_id, "Phase 4 : Assemblage de la piste audio finale...").await;
@@ -180,12 +189,15 @@ impl IngestVideoUseCase {
             composer_slides, 
             Some(final_audio_res.url.clone())
         ).await?;
+        self.log(job_id, "Composition vidéo terminée. Libération du worker video-composer...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
 
         // Phase 6 : Animations Bonus (SVD) sur la première slide
         if let Some(first_slide) = slides_input.first() {
             self.log(job_id, "Phase 6 : Génération d'une animation bonus (SVD) pour l'intro...").await;
             self.scaling_repo.scale_up("keryx", "keryx-video-generator").await?;
             let _ = self.video_generator.animate(&job_id.to_string(), &first_slide.image_url).await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
         }
 
         // Phase 7 : Notification Slack finale
