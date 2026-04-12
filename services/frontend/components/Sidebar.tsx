@@ -37,7 +37,7 @@ export function Sidebar() {
       <div className="flex items-center gap-3 px-1 mb-10">
         <Link href="/" className="transition-transform hover:scale-105 active:scale-95">
           <img 
-            src="https://filippinistudio.com/wp-content/uploads/2025/05/keryx-design-logo-mark-inverted-rgb-900px-w-72ppi-610x1024.png" 
+            src="/keryx.png" 
             alt="Keryx Logo"
             className="w-12 h-auto rounded-lg shadow-lg shadow-primary/10 object-contain"
           />
