@@ -4,6 +4,10 @@ version = "0.5.0"
 authors = ["Joseph ZACHARIE <joseph@example.com>"]
 edition = "2024"
 
+[lib]
+name = "keryx_ingestor"
+path = "src/lib.rs"
+
 [dependencies]
 # Core
 tokio = { version = "1.0", features = ["full"] }
