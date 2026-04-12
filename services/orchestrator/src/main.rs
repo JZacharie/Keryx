@@ -34,7 +34,7 @@ use keryx_orchestrator::{
 
 #[tokio::main]
 async fn main() {
-    println!(">>> KERYX ORCHESTRATOR: Starting process...");
+    println!(">>> KERYX INGESTOR: Starting process...");
     let _ = std::io::stdout().flush();
 
     use tracing_subscriber::{fmt, EnvFilter, prelude::*};
@@ -48,12 +48,18 @@ async fn main() {
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
-    tracing::info!("Tracing initialized. Keryx Orchestrator v{} starting...", env!("CARGO_PKG_VERSION"));
+    println!(">>> KERYX INGESTOR: Initializing runtime...");
+    let _ = std::io::stdout().flush();
 
     if let Err(e) = run().await {
+        eprintln!(">>> FATAL ERROR IN RUN: {:?}", e);
         tracing::error!("FATAL ERROR: {:?}", e);
+        let _ = std::io::stderr().flush();
         std::process::exit(1);
     }
+    
+    println!(">>> KERYX INGESTOR: main() finished normally (Wait, it shouldn't have!)");
+    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 }
 
 async fn run() -> anyhow::Result<()> {
@@ -147,8 +153,28 @@ async fn run() -> anyhow::Result<()> {
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    tracing::info!("Orchestrator listening on http://{}", listener.local_addr()?);
-    axum::serve(listener, app).await?;
+    println!(">>> KERYX INGESTOR: Server listening on http://{}", listener.local_addr()?);
+    tracing::info!("Ingestor listening on http://{}", listener.local_addr()?);
+    let _ = std::io::stdout().flush();
+
+    // Start server
+    let server_handle = axum::serve(listener, app);
+    println!(">>> KERYX INGESTOR: Server handle created, awaiting...");
+    let _ = std::io::stdout().flush();
+
+    match server_handle.await {
+        Ok(_) => {
+            println!(">>> KERYX INGESTOR: axum::serve finished with OK.");
+            tracing::warn!("Server shutdown normally.");
+        },
+        Err(e) => {
+            println!(">>> KERYX INGESTOR: axum::serve finished with ERROR: {:?}", e);
+            tracing::error!("Server error: {:?}", e);
+        }
+    }
+
+    println!(">>> KERYX INGESTOR: run() is exiting. This is unexpected for a long-running service.");
+    let _ = std::io::stdout().flush();
 
     Ok(())
 }
