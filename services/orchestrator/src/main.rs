@@ -157,7 +157,18 @@ async fn run() -> anyhow::Result<()> {
         .merge(public_routes)
         .merge(protected_routes)
         .fallback_service(tower_http::services::ServeDir::new("static").fallback(tower_http::services::ServeFile::new("static/index.html")))
-        .layer(CorsLayer::permissive())
+        .layer(
+            CorsLayer::permissive()
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                ])
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
