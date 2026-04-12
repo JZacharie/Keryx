@@ -22,7 +22,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && update-ca-certificates
 
 WORKDIR /app
-RUN groupadd -g 1000 keryx && useradd -r -u 1000 -g keryx -s /bin/false keryx && chown -R keryx:keryx /app
+RUN if getent group 1000; then groupdel $(getent group 1000 | cut -d: -f1); fi && \
+    if getent passwd 1000; then userdel -r $(getent passwd 1000 | cut -d: -f1); fi && \
+    groupadd -g 1000 keryx && \
+    useradd -r -u 1000 -g keryx -s /bin/false keryx && \
+    chown keryx:keryx /app
 
 ENV REDIS_URL=redis://localhost:6379
 ENV S3_BUCKET=keryx-raw
@@ -66,6 +70,5 @@ FROM runner AS release
 COPY --from=builder --chmod=755 /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
 COPY --from=builder --chown=keryx:keryx /app/static static
 COPY --from=builder --chown=keryx:keryx /app/begin.mp4 begin.mp4
-RUN chown -R keryx:keryx /app
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
