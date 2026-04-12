@@ -1,13 +1,11 @@
 # --- Runner ---
-FROM ubuntu:24.04 AS runner
+FROM debian:bookworm-slim AS runner
 
 # Set non-interactive for apt
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install yt-dlp, ffmpeg and standard CA certs
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     curl \
@@ -19,18 +17,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libopencv-dev \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
-    && update-ca-certificates
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN if getent passwd 1000; then userdel -r $(getent passwd 1000 | cut -d: -f1); fi && \
-    if getent group 1000; then groupdel $(getent group 1000 | cut -d: -f1); fi && \
-    groupadd -g 1000 keryx && \
-    useradd -r -u 1000 -g keryx -s /bin/false keryx && \
+
+# Ensure user keryx exists with UID 1000
+RUN groupadd -g 1000 keryx && \
+    useradd -r -u 1000 -g keryx -s /bin/false keryx || true && \
     chown keryx:keryx /app
 
-ENV REDIS_URL=redis://localhost:6379
-ENV S3_BUCKET=keryx-raw
-ENV S3_REGION=eu-west-1
+ENV REDIS_URL=redis://localhost:6379 \
+    S3_BUCKET=keryx-raw \
+    S3_REGION=eu-west-1 \
+    RUST_LOG=info
 
 EXPOSE 3000
 
@@ -46,9 +46,8 @@ CMD ["/usr/local/bin/keryx-ingestor"]
 # --- Full Build ---
 FROM lukemathwalker/cargo-chef:latest-rust-1.80-slim AS chef
 WORKDIR /app
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev mold sccache
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev mold sccache \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTC_WRAPPER="sccache"
 ENV SCCACHE_DIR="/app/.sccache"
@@ -72,3 +71,4 @@ COPY --from=builder --chown=keryx:keryx /app/static static
 COPY --from=builder --chown=keryx:keryx /app/begin.mp4 begin.mp4
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
+

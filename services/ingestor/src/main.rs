@@ -28,22 +28,36 @@ use keryx_ingestor::{
 use std::path::PathBuf;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    // Force immediate output to stdout/stderr even if tracing fails to init
+    println!(">>> KERYX INGESTOR: Starting process...");
+    let _ = std::io::stdout().flush();
+
     use tracing_subscriber::{fmt, EnvFilter, prelude::*};
 
+    // Initialize tracing with a clear format and explicit writer
     tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("trace")))
+        .with(fmt::layer()
+            .with_writer(std::io::stdout)
+            .with_ansi(false) // Better for most log collectors
+            .with_target(true)
+            .with_thread_ids(true))
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
-    use std::io::Write;
-    // Force immediate stderr output for debugging
-    eprintln!(">>> KERYX INGESTOR: main() reached <<<");
-    std::io::stderr().flush().unwrap();
+    tracing::info!("Tracing initialized. Keryx Ingestor v{} starting...", env!("CARGO_PKG_VERSION"));
 
-    println!(">>> KERYX INGESTOR STARTING UP <<<");
-    std::io::stdout().flush().unwrap();
-    tracing::info!("Tracing initialized at TRACE level.");
+    if let Err(e) = run().await {
+        tracing::error!("FATAL ERROR: {:?}", e);
+        eprintln!("FATAL ERROR: {:?}", e);
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> anyhow::Result<()> {
+    // Force immediate stderr output for debugging
+    eprintln!(">>> KERYX INGESTOR: run() loop reached <<<");
+    let _ = std::io::stderr().flush();
 
     // Fix for rustls 0.23: explicitly install crypto provider
     #[allow(clippy::single_component_path_imports)]
@@ -64,7 +78,8 @@ async fn main() -> anyhow::Result<()> {
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
     let temp_dir = PathBuf::from("/tmp/keryx");
-    std::fs::create_dir_all(&temp_dir)?;
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to create temp directory {:?}: {}. Check permissions for user UID 1000", temp_dir, e))?;
 
     // Initialize repositories
     tracing::info!("Starting repository initialization...");
