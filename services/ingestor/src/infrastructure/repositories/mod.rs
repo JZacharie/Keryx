@@ -3,7 +3,7 @@ pub mod ffmpeg_analyzer;
 pub mod ffmpeg_reconstructor;
 pub mod kube_scaling_repository;
 pub mod ollama_translator_repository;
-pub mod opencv_analyzer;
+// pub mod opencv_analyzer; // Requires libclang — disabled for local builds without LLVM
 pub mod pptx_builder_repository;
 pub mod qwen_tts_repository;
 pub mod coqui_voice_cloner_repository;
