@@ -36,10 +36,9 @@ RUN apt-get update && apt-get install -y \
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cargo-chef --version 0.1.77 --locked
 
-# --- Compute dependency recipe (from root context) ---
+# --- Compute dependency recipe ---
 FROM chef AS planner
-COPY Cargo.toml Cargo.lock ./
-COPY services/ services/
+COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # --- Cook (cache deps), then build binary ---
@@ -47,8 +46,7 @@ FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo chef cook --release --recipe-path recipe.json
-COPY Cargo.toml Cargo.lock ./
-COPY services/ services/
+COPY . .
 RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo build --release --bin keryx-ingestor
 
