@@ -1,49 +1,137 @@
 import os
+import io
+import uuid
+import time
+import logging
+import tempfile
+import shutil
+import asyncio
+from typing import Optional
+
 import torch
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
+import aioboto3
+import httpx
+from urllib.parse import urlparse
 from TTS.api import TTS
-import tempfile
 
-app = FastAPI()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("keryx.voice_cloner")
 
-# Force agreement to Coqui non-commercial license for programmatic use
+app = FastAPI(title="Keryx Voice Cloner (XTTS v2)", version="1.0.0")
+
+# Force agreement to Coqui non-commercial license
 os.environ["COQUI_TOS_AGREED"] = "1"
 
-# Initialize XTTS v2
+# Configuration S3
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
+S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
+
+s3_session = aioboto3.Session()
+
+def _s3_client():
+    return s3_session.client(
+        "s3",
+        endpoint_url=S3_ENDPOINT,
+        aws_access_key_id=S3_ACCESS_KEY,
+        aws_secret_access_key=S3_SECRET_KEY,
+        verify=False,
+    )
+
+# Initialize TTS Model
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Loading XTTS v2 on {device}...")
+logger.info(f"Loading XTTS v2 on {device}...")
 tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
+logger.info("Model loaded.")
 
-@app.get("/")
-async def generate_tts(text: str, language: str = "en", speaker_wav: str = "reference.wav"):
-    # Try different locations for the reference wav
-    if not os.path.exists(speaker_wav):
-        alt_path = os.path.join(os.path.dirname(__file__), speaker_wav)
-        if os.path.exists(alt_path):
-            speaker_wav = alt_path
-        else:
-            raise HTTPException(status_code=404, detail=f"Speaker wav not found: {speaker_wav}. Looking in: {os.getcwd()} and {os.path.dirname(__file__)}")
+class CloneRequest(BaseModel):
+    text: str
+    language: str = "en"
+    reference_url: str  # URL S3 ou HTTP du WAV de référence
+    job_id: str
+    output_key: Optional[str] = None
 
+async def download_file(url: str, dest: str):
+    parsed = urlparse(url)
+    if url.startswith("/") and os.path.exists(url):
+        shutil.copy(url, dest)
+        return
+    if any(h in parsed.netloc for h in ["zacharie.org", "minio", "localhost", "rustfs"]):
+        parts = parsed.path.lstrip("/").split("/")
+        bucket, key = parts[0], "/".join(parts[1:])
+        async with _s3_client() as s3:
+            await s3.download_file(bucket, key, dest)
+    else:
+        async with httpx.AsyncClient(verify=False) as client:
+            async with client.stream("GET", url) as resp:
+                with open(dest, "wb") as f:
+                    async for chunk in resp.aiter_bytes(8192):
+                        f.write(chunk)
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "device": device, "model": "xtts_v2"}
+
+@app.post("/clone")
+async def clone_voice(req: CloneRequest):
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{request_id}] Clone request job={req.job_id} lang={req.language}")
+    start_time = time.time()
+
+    tmp_dir = tempfile.mkdtemp(prefix=f"keryx_tts_{request_id}_")
     try:
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            wav_path = tmp.name
+        # 1. Download reference wav
+        ref_path = os.path.join(tmp_dir, "reference.wav")
+        logger.info(f"[{request_id}] Downloading reference from {req.reference_url}")
+        await download_file(req.reference_url, ref_path)
 
-        tts.tts_to_file(
-            text=text,
-            speaker_wav=speaker_wav,
-            language=language,
-            file_path=wav_path
+        # 2. Generate TTS
+        out_path = os.path.join(tmp_dir, "output.wav")
+        logger.info(f"[{request_id}] Generating TTS...")
+        
+        # TTS logic is often CPU/GPU intensive and synchronous in Coqui
+        await asyncio.to_thread(
+            tts.tts_to_file,
+            text=req.text,
+            speaker_wav=ref_path,
+            language=req.language,
+            file_path=out_path
         )
 
-        with open(wav_path, "rb") as f:
-            content = f.read()
+        # 3. Upload to S3
+        key = req.output_key or f"jobs/{req.job_id}/audio/clone_{uuid.uuid4()}.wav"
+        async with _s3_client() as s3:
+            await s3.upload_file(out_path, S3_BUCKET, key, ExtraArgs={"ContentType": "audio/wav"})
+        
+        result_url = f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
+        
+        duration = time.time() - start_time
+        logger.info(f"[{request_id}] Done in {duration:.1f}s → {result_url}")
+        
+        return {
+            "status": "success",
+            "url": result_url,
+            "duration": f"{duration:.2f}s"
+        }
 
-        os.remove(wav_path)
-        return Response(content=content, media_type="audio/wav")
     except Exception as e:
-        print(f"TTS Error: {str(e)}")
+        logger.exception(f"[{request_id}] Error")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+# Garder l'ancien endpoint pour compatibilité temporaire si nécessaire
+@app.get("/")
+async def legacy_tts(text: str, language: str = "en", speaker_wav: str = "reference.wav"):
+    # ... (implémentation simplifiée ou redirection)
+    return {"error": "Please use POST /clone"}
 
 if __name__ == "__main__":
     import uvicorn
