@@ -8,6 +8,10 @@ edition = "2024"
 name = "keryx_ingestor"
 path = "src/lib.rs"
 
+[[bin]]
+name = "keryx-ingestor"
+path = "src/main.rs"
+
 [dependencies]
 # Core
 tokio = { version = "1.0", features = ["full"] }
