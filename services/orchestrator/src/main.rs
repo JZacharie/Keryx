@@ -7,7 +7,7 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use keryx_orchestrator::{
+use keryx_ingestor::{
     state::AppState,
     interfaces::http::job_handlers::{create_job_handler, get_job_handler},
     interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
@@ -34,6 +34,10 @@ use keryx_orchestrator::{
 
 #[tokio::main]
 async fn main() {
+    // RAW HELLO - No runtime needed for this
+    println!(">>> KERYX INGESTOR: RAW HELLO FROM MAIN!");
+    let _ = std::io::stdout().flush();
+
     println!(">>> KERYX INGESTOR: Starting process...");
     let _ = std::io::stdout().flush();
 
@@ -57,12 +61,17 @@ async fn main() {
         let _ = std::io::stderr().flush();
         std::process::exit(1);
     }
-    
-    println!(">>> KERYX INGESTOR: main() finished normally (Wait, it shouldn't have!)");
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 }
 
 async fn run() -> anyhow::Result<()> {
+    // Check for minimalist test mode
+    if std::env::var("INGESTOR_TEST").unwrap_or_default() == "true" {
+        println!(">>> KERYX INGESTOR: MINIMALIST TEST MODE ACTIVE! Sleeping 1 hour...");
+        let _ = std::io::stdout().flush();
+        tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+        return Ok(());
+    }
+
     // Fix for rustls 0.23: explicitly install crypto provider
     let _ = rustls::crypto::ring::default_provider().install_default();
 
