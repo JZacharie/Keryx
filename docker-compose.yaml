@@ -18,7 +18,7 @@ services:
       - DEWATERMARK_URL=http://dewatermark:8011
       - VOICE_EXTRACTOR_URL=http://voice-extractor:8012
       - VIDEO_COMPOSER_URL=http://video-composer:8013
-      - VIDEO_GENERATOR_URL=http://video-generator:8014
+      - VIDEO_GENERATOR_URL=http://wan2gp:8014
       - VOICE_CLONER_URL=http://voice-cloner:9880
       - PPTX_URL=http://pptx-builder:8002
       - API_KEY=${API_KEY:-changeme}
@@ -83,10 +83,10 @@ services:
     networks:
       - keryx-net
 
-  video-generator:
+  wan2gp:
     build:
-      context: ./services/video-generator
-    container_name: keryx-video-generator
+      context: ./services/wan2gp
+    container_name: keryx-wan2gp
     deploy:
       resources:
         reservations:
