@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::io::Write;
 use axum::{
+    middleware,
     routing::{get, post},
     Router,
 };
@@ -9,21 +10,25 @@ use tower_http::trace::TraceLayer;
 use keryx_ingestor::{
     state::AppState,
     interfaces::http::job_handlers::{create_job_handler, get_job_handler},
+    interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
     application::use_cases::ingest_video::IngestVideoUseCase,
-    infrastructure::repositories::{
-        redis_job_repository::RedisJobRepository,
-        s3_storage_repository::S3StorageRepository,
-        yt_dlp_repository::YtDlpRepository,
-        ffmpeg_analyzer::FfmpegAnalyzer,
-        whisper_stt_repository::WhisperSTTRepository,
-        ollama_translator_repository::OllamaTranslatorRepository,
-        diffusion_stylizer_repository::DiffusionStylizerRepository,
-        pptx_builder_repository::PptxBuilderRepository,
-        kube_scaling_repository::KubeScalingRepository,
-        qwen_tts_repository::QwenTTSRepository,
-        coqui_voice_cloner_repository::CoquiVoiceClonerRepository,
-        ffmpeg_reconstructor::FfmpegReconstructor,
-        slack_notification_repository::SlackNotificationRepository,
+    infrastructure::{
+        auth_middleware::{require_api_key, AuthState},
+        repositories::{
+            redis_job_repository::RedisJobRepository,
+            s3_storage_repository::S3StorageRepository,
+            yt_dlp_repository::YtDlpRepository,
+            ffmpeg_analyzer::FfmpegAnalyzer,
+            whisper_stt_repository::WhisperSTTRepository,
+            ollama_translator_repository::OllamaTranslatorRepository,
+            diffusion_stylizer_repository::DiffusionStylizerRepository,
+            pptx_builder_repository::PptxBuilderRepository,
+            kube_scaling_repository::KubeScalingRepository,
+            qwen_tts_repository::QwenTTSRepository,
+            coqui_voice_cloner_repository::CoquiVoiceClonerRepository,
+            ffmpeg_reconstructor::FfmpegReconstructor,
+            slack_notification_repository::SlackNotificationRepository,
+        },
     },
 };
 use std::path::PathBuf;
@@ -78,6 +83,13 @@ async fn run() -> anyhow::Result<()> {
     let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://voice-cloner.keryx.svc.cluster.local:9880".to_string());
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
+    // API Key pour l'authentification (si non définie, génère un warning et utilise "changeme")
+    let api_key = std::env::var("API_KEY").unwrap_or_else(|_| {
+        tracing::warn!("⚠️  API_KEY env var not set! Using default 'changeme'. Set API_KEY in production!");
+        "changeme".to_string()
+    });
+    tracing::info!("Auth: API key loaded ({} chars).", api_key.len());
+
     let temp_dir = PathBuf::from("/tmp/keryx");
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| anyhow::anyhow!("Failed to create temp directory {:?}: {}. Check permissions for user UID 1000", temp_dir, e))?;
@@ -129,11 +141,25 @@ async fn run() -> anyhow::Result<()> {
         ingest_video_use_case,
     };
 
-    // Build routes
-    let app = Router::new()
+    // Auth state (uniquement pour les routes protégées)
+    let auth_state = AuthState { api_key };
+
+    // Routes publiques (lecture seule)
+    let public_routes = Router::new()
         .route("/health", get(|| async { "OK" }))
-        .route("/api/jobs", post(create_job_handler))
         .route("/api/jobs/:id", get(get_job_handler))
+        .route("/api/jobs/:id/logs", get(get_job_logs_sse_handler))
+        .route("/api/jobs/:id/logs/raw", get(get_job_logs_raw_handler));
+
+    // Routes protégées par Bearer token (écriture / création)
+    let protected_routes = Router::new()
+        .route("/api/jobs", post(create_job_handler))
+        .layer(middleware::from_fn_with_state(auth_state, require_api_key));
+
+    // Assemblage du router final
+    let app = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
         .fallback_service(tower_http::services::ServeDir::new("static").fallback(tower_http::services::ServeFile::new("static/index.html")))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
