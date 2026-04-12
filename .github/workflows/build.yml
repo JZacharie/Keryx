@@ -18,7 +18,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/keryx-ingestor
+  IMAGE_NAME: ${{ github.repository_owner }}/keryx-orchestrator
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
     name: 🔍 Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      ingestor: ${{ steps.filter.outputs.ingestor }}
+      orchestrator: ${{ steps.filter.outputs.orchestrator }}
       diffusion: ${{ steps.filter.outputs.diffusion }}
       pptx: ${{ steps.filter.outputs.pptx }}
       voice_cloner: ${{ steps.filter.outputs.voice_cloner }}
@@ -42,9 +42,9 @@ jobs:
         id: filter
         with:
           filters: |
-            ingestor:
-              - 'services/ingestor/**'
-              - 'deploy/helm/keryx-ingestor/**'
+            orchestrator:
+              - 'services/orchestrator/**'
+              - 'deploy/helm/keryx-orchestrator/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
             diffusion:
@@ -82,12 +82,12 @@ jobs:
         run: gitleaks detect --verbose --redact
 
   # ============================================================================
-  # Phase 2: Build Rust Ingestor binary
+  # Phase 2: Build Rust Orchestrator binary
   # ============================================================================
   build-rust:
-    name: 🦀 Build Rust Ingestor
+    name: 🦀 Build Rust Orchestrator
     needs: changes
-    if: needs.changes.outputs.ingestor == 'true' || github.event.inputs.force_build == 'true'
+    if: needs.changes.outputs.orchestrator == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -132,21 +132,21 @@ jobs:
 
       - name: Build Rust binary (Actual build)
         run: |
-          cargo build --release --bin keryx-ingestor
-          ls -lh target/release/keryx-ingestor
+          cargo build --release --bin keryx-orchestrator
+          ls -lh target/release/keryx-orchestrator
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v7
         with:
-          name: keryx-ingestor-binary
-          path: target/release/keryx-ingestor
+          name: keryx-orchestrator-binary
+          path: target/release/keryx-orchestrator
           retention-days: 1
 
   # ============================================================================
   # Phase 3: Containerization
   # ============================================================================
-  build-ingestor:
-    name: 🐳 Build Ingestor Image
+  build-orchestrator:
+    name: 🐳 Build Orchestrator Image
     needs: build-rust
     runs-on: ubuntu-24.04
     permissions:
@@ -159,8 +159,8 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v8
         with:
-          name: keryx-ingestor-binary
-          path: services/ingestor/target/release/
+          name: keryx-orchestrator-binary
+          path: services/orchestrator/target/release/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -177,7 +177,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/jzacharie/keryx-ingestor
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-orchestrator
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -187,10 +187,10 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
-          context: ./services/ingestor
+          context: ./services/orchestrator
           target: release-ci
           build-args: |
-            PREBUILT_BINARY=target/release/keryx-ingestor
+            PREBUILT_BINARY=target/release/keryx-orchestrator
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -454,8 +454,8 @@ jobs:
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp]
-    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.ingestor == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true')
+    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp]
+    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Install kubectl
@@ -473,9 +473,9 @@ jobs:
       #     kubectl patch app keryx -n argocd -p '{"operation":{"sync":{"revisions":["main","main"]}}}' --type=merge
 
       #     # Only restart if they were rebuilt
-      #     if [ "${{ needs.changes.outputs.ingestor }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-      #       kubectl rollout restart deployment keryx-keryx-ingestor -n keryx
-      #       kubectl rollout status deployment keryx-keryx-ingestor -n keryx
+      #     if [ "${{ needs.changes.outputs.orchestrator }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment keryx-keryx-orchestrator -n keryx
+      #       kubectl rollout status deployment keryx-keryx-orchestrator -n keryx
       #     fi
 
       #     if [ "${{ needs.changes.outputs.diffusion }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
