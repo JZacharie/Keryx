@@ -61,6 +61,7 @@ interface CreateJobPayload {
 // Helpers
 // ─────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ingestor.p.zacharie.org";
+const ENV_API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
 
 function getStatusLabel(status: JobStatus): string {
   if (status === "Pending") return "pending";
@@ -238,7 +239,8 @@ function CreateModal({
   const handleSubmit = async () => {
     if (!videoUrl.trim()) { setError("L'URL de la vidéo est requise."); return; }
     if (selectedLangs.length === 0) { setError("Sélectionnez au moins une langue."); return; }
-    if (!apiKey.trim()) { setError("Une API Key est requise."); return; }
+    const effectiveKey = ENV_API_KEY || apiKey;
+    if (!effectiveKey.trim()) { setError("Une API Key est requise."); return; }
     setLoading(true);
     setError("");
     try {
@@ -251,7 +253,7 @@ function CreateModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${effectiveKey}`,
         },
         body: JSON.stringify(payload),
       });
@@ -345,17 +347,19 @@ function CreateModal({
             />
           </div>
 
-          {/* API Key */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">API Key</label>
-            <input
-              type="password"
-              placeholder="Bearer token..."
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all text-sm"
-            />
-          </div>
+          {/* API Key — hidden if provided by env */}
+          {!ENV_API_KEY && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">API Key</label>
+              <input
+                type="password"
+                placeholder="Bearer token..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8A2BE2]/50 transition-all text-sm"
+              />
+            </div>
+          )}
 
           {error && (
             <p className="text-red-400 text-sm flex items-center gap-2">
@@ -457,12 +461,15 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [apiKey, setApiKey] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("keryx_api_key") || "" : ""
-  );
+  const [apiKey, setApiKey] = useState(() => {
+    if (ENV_API_KEY) return ENV_API_KEY;
+    if (typeof window !== "undefined") return localStorage.getItem("keryx_api_key") || "";
+    return "";
+  });
 
-  // Persist API key
+  // Persist API key (only if coming from user input, not env)
   useEffect(() => {
+    if (ENV_API_KEY) return;
     if (typeof window !== "undefined") localStorage.setItem("keryx_api_key", apiKey);
   }, [apiKey]);
 
