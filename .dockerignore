@@ -1,0 +1,10 @@
+target/
+.git/
+*.mp4
+*.wav
+*.pptx
+*.png
+*.jpg
+outputs/
+.sccache/
+node_modules/
