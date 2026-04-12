@@ -1,5 +1,5 @@
 # --- Runner ---
-FROM debian:bookworm-slim AS runner
+FROM ubuntu:24.04 AS runner
 
 # Set non-interactive for apt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,10 +22,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Ensure user keryx exists with UID 1000
-RUN groupadd -g 1000 keryx && \
-    useradd -r -u 1000 -g keryx -s /bin/false keryx || true && \
-    chown keryx:keryx /app
+# Ensure user keryx exists with UID 1000, or reuse existing user with that UID
+RUN if ! getent group 1000; then groupadd -g 1000 keryx; fi && \
+    if ! getent passwd 1000; then useradd -r -u 1000 -g 1000 -s /bin/false keryx; fi && \
+    chown -R 1000:1000 /app
 
 ENV REDIS_URL=redis://localhost:6379 \
     S3_BUCKET=keryx-raw \
@@ -44,9 +44,9 @@ USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 
 # --- Full Build ---
-FROM lukemathwalker/cargo-chef:latest-rust-1.80-slim AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.91.1-slim AS chef
 WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev curl clang libopencv-dev mold sccache \
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl clang libclang-dev llvm-dev libopencv-dev mold sccache \
     && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTC_WRAPPER="sccache"
@@ -54,11 +54,16 @@ ENV SCCACHE_DIR="/app/.sccache"
 
 
 FROM chef AS planner
+WORKDIR /app
 COPY . .
+WORKDIR /app/services/ingestor
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-COPY --from=planner /app/recipe.json recipe.json
+WORKDIR /app
+COPY services/keryx-core services/keryx-core
+WORKDIR /app/services/ingestor
+COPY --from=planner /app/services/ingestor/recipe.json recipe.json
 RUN --mount=type=cache,target=/app/.sccache \
     cargo chef cook --release --recipe-path recipe.json
 COPY . .
@@ -67,8 +72,8 @@ RUN --mount=type=cache,target=/app/.sccache \
 
 FROM runner AS release
 COPY --from=builder --chmod=755 /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
-COPY --from=builder --chown=keryx:keryx /app/static static
-COPY --from=builder --chown=keryx:keryx /app/begin.mp4 begin.mp4
+COPY --from=builder --chown=keryx:keryx /app/services/ingestor/static static
+COPY --from=builder --chown=keryx:keryx /app/services/ingestor/begin.mp4 begin.mp4
 USER keryx
 CMD ["/usr/local/bin/keryx-ingestor"]
 
