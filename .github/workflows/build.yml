@@ -84,63 +84,9 @@ jobs:
       - name: Run Gitleaks
         run: gitleaks detect --verbose --redact
 
-  # ============================================================================
-  # Phase 2: Build Rust Orchestrator binary
-  # ============================================================================
-  build-rust:
-    name: 🦀 Build Rust Ingestor
-    needs: changes
-    if: needs.changes.outputs.orchestrator == 'true' || github.event.inputs.force_build == 'true'
-    runs-on: ubuntu-24.04
-    env:
-      CARGO_HOME: /home/runner/.cargo
-      CARGO_INCREMENTAL: 0
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Restore Cargo cache (registry + build artefacts)
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ". -> target"
-          key: keryx-ingestor
-          cache-on-failure: true
-
-      - name: Cache cargo-chef binary
-        id: cache-chef
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-chef
-          key: ${{ runner.os }}-cargo-chef-bin-0.1.77
-
-      - name: Install cargo-chef (if not cached)
-        if: steps.cache-chef.outputs.cache-hit != 'true'
-        run: cargo install cargo-chef --version 0.1.77 --locked
-
-      - name: Cargo Chef Prepare
-        run: cargo chef prepare --recipe-path recipe.json
-
-      - name: Cargo Chef Cook (cache dep compilation)
-        run: cargo chef cook --release --recipe-path recipe.json
-
-      - name: Build Rust binary
-        run: |
-          cargo build --release --bin keryx-ingestor
-          ls -lh target/release/keryx-ingestor
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: keryx-ingestor-binary
-          path: target/release/keryx-ingestor
-          retention-days: 1
 
   # ============================================================================
-  # Phase 3: Containerization
+  # Phase 2: Containerization
   # ============================================================================
   build-ingestor:
     name: 🐳 Build Ingestor Image
