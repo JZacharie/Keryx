@@ -37,6 +37,9 @@ env:
   S3_REGION: "eu-west-1"
   S3_ENDPOINT: "http://minio:9000"
 
+imagePullSecrets:
+  - name: ghcr-login
+
 nodeSelector:
   kubernetes.io/hostname: vm169
 

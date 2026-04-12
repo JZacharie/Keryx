@@ -37,6 +37,10 @@ jobs:
       voice_cloner_gpt: ${{ steps.filter.outputs.voice_cloner_gpt }}
       wan2gp: ${{ steps.filter.outputs.wan2gp }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      extractor: ${{ steps.filter.outputs.extractor }}
+      dewatermark: ${{ steps.filter.outputs.dewatermark }}
+      voice_extractor: ${{ steps.filter.outputs.voice_extractor }}
+      video_composer: ${{ steps.filter.outputs.video_composer }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
@@ -62,6 +66,14 @@ jobs:
               - 'services/wan2gp/**'
             frontend:
               - 'services/frontend/**'
+            extractor:
+              - 'services/extractor/**'
+            dewatermark:
+              - 'services/dewatermark/**'
+            voice_extractor:
+              - 'services/voice-extractor/**'
+            video_composer:
+              - 'services/video-composer/**'
 
   # ============================================================================
   # Phase 1: Security Audit
@@ -422,13 +434,173 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  build-extractor:
+    name: 🧪 Build Extractor Image
+    needs: changes
+    if: needs.changes.outputs.extractor == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-extractor
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/extractor
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-dewatermark:
+    name: 🧼 Build Dewatermark Image
+    needs: changes
+    if: needs.changes.outputs.dewatermark == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-dewatermark
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/dewatermark
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-voice-extractor:
+    name: 🔊 Build Voice Extractor Image
+    needs: changes
+    if: needs.changes.outputs.voice_extractor == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-voice-extractor
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/voice-extractor
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-video-composer:
+    name: 🎬 Build Video Composer Image
+    needs: changes
+    if: needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-video-composer
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/video-composer
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # ============================================================================
   # Phase 4: Continuous Deployment (CD)
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp, build-frontend]
-    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || needs.changes.outputs.frontend == 'true' || github.event.inputs.force_build == 'true')
+    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
+    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Configure kubectl
