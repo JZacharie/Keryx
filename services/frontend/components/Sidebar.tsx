@@ -34,11 +34,15 @@ export function Sidebar() {
 
   return (
     <div className="w-64 h-screen glass border-r border-border flex flex-col p-4 z-50 overflow-hidden">
-      <div className="flex items-center gap-3 px-2 mb-10">
-        <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg shadow-primary/20">
-          <Activity className="text-white w-6 h-6" />
-        </div>
-        <div>
+      <div className="flex items-center gap-3 px-1 mb-10">
+        <Link href="/" className="transition-transform hover:scale-105 active:scale-95">
+          <img 
+            src="https://filippinistudio.com/wp-content/uploads/2025/05/keryx-design-logo-mark-inverted-rgb-900px-w-72ppi-610x1024.png" 
+            alt="Keryx Logo"
+            className="w-12 h-auto rounded-lg shadow-lg shadow-primary/10 object-contain"
+          />
+        </Link>
+        <div className="ml-1">
           <h1 className="text-xl font-bold tracking-tight text-gradient">KERYX</h1>
           <p className="text-[10px] text-slate-500 font-medium tracking-widest uppercase">Orchestrator v0.5</p>
         </div>
