@@ -52,11 +52,11 @@ RUN --mount=type=cache,target=/app/.sccache \
     cargo chef cook --release --recipe-path recipe.json
 COPY . .
 RUN --mount=type=cache,target=/app/.sccache \
-    cargo build --release --bin keryx-orchestrator
+    cargo build --release --bin keryx-ingestor
 
 FROM runner AS release
-COPY --from=builder --chmod=755 /app/target/release/keryx-orchestrator /usr/local/bin/keryx-orchestrator
+COPY --from=builder --chmod=755 /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
 COPY --from=builder --chown=keryx:keryx /app/services/orchestrator/static static
 COPY --from=builder --chown=keryx:keryx /app/services/orchestrator/begin.mp4 begin.mp4
 USER keryx
-CMD ["/usr/local/bin/keryx-orchestrator"]
+CMD ["/usr/local/bin/keryx-ingestor"]
