@@ -22,8 +22,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && update-ca-certificates
 
 WORKDIR /app
-RUN if getent group 1000; then groupdel $(getent group 1000 | cut -d: -f1); fi && \
-    if getent passwd 1000; then userdel -r $(getent passwd 1000 | cut -d: -f1); fi && \
+RUN if getent passwd 1000; then userdel -r $(getent passwd 1000 | cut -d: -f1); fi && \
+    if getent group 1000; then groupdel $(getent group 1000 | cut -d: -f1); fi && \
     groupadd -g 1000 keryx && \
     useradd -r -u 1000 -g keryx -s /bin/false keryx && \
     chown keryx:keryx /app
