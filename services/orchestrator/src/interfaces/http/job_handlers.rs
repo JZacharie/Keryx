@@ -67,4 +67,13 @@ pub async fn get_job_handler(
     }
 }
 
+pub async fn list_jobs_handler(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match state.ingest_video_use_case.get_job_repo().list(100).await {
+        Ok(jobs) => Json(jobs).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
 use serde_json::json;

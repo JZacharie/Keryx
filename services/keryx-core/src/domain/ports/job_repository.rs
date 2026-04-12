@@ -12,4 +12,6 @@ pub trait JobRepository: Send + Sync {
     async fn append_log(&self, id: Uuid, message: &str) -> Result<()>;
     /// Retrieve all log lines for a job
     async fn get_logs(&self, id: Uuid) -> Result<Vec<String>>;
+    /// List all jobs (limited)
+    async fn list(&self, limit: usize) -> Result<Vec<Job>>;
 }
