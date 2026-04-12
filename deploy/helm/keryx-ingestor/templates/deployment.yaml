@@ -48,13 +48,13 @@ spec:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 2
+            initialDelaySeconds: 10
             periodSeconds: 5
           env:
             {{- range $key, $value := .Values.env }}
