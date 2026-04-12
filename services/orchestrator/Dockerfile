@@ -64,6 +64,6 @@ FROM runner AS release-ci
 ARG PREBUILT_BINARY=bin/keryx-ingestor
 COPY static static
 COPY ${PREBUILT_BINARY} /usr/local/bin/keryx-ingestor
-RUN chmod 755 /usr/local/bin/keryx-ingestor && chown keryx:keryx /usr/local/bin/keryx-ingestor
-USER keryx
+RUN chmod 755 /usr/local/bin/keryx-ingestor && chown 1000:1000 /usr/local/bin/keryx-ingestor
+USER 1000
 CMD ["/usr/local/bin/keryx-ingestor"]
