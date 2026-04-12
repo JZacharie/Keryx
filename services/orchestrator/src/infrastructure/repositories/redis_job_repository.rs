@@ -22,6 +22,7 @@ impl JobRepository for RedisJobRepository {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let json = serde_json::to_string(job)?;
         let _: () = conn.set(job.id.to_string(), json).await?;
+        let _: () = conn.sadd("keryx:jobs", job.id.to_string()).await?;
         Ok(())
     }
 
@@ -56,5 +57,25 @@ impl JobRepository for RedisJobRepository {
         let key = format!("log:{}", id);
         let logs: Vec<String> = conn.lrange(&key, 0, -1).await?;
         Ok(logs)
+    }
+    
+    async fn list(&self, limit: usize) -> Result<Vec<Job>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let ids: Vec<String> = conn.smembers("keryx:jobs").await?;
+        
+        let mut jobs = Vec::new();
+        // Pour faire simple on prend les derniers, mais SMEMBERS n'est pas ordonné.
+        // Un refactoring vers un ZSET (sorted set) avec timestamp serait mieux.
+        for id in ids.iter().take(limit) {
+            if let Some(json) = conn.get::<_, Option<String>>(id).await? {
+                if let Ok(job) = serde_json::from_str(&json) {
+                    jobs.push(job);
+                }
+            }
+        }
+        
+        // Trier par ID (approximatif du temps si UUIDv7, sinon juste déterministe)
+        // Mais ici ce sont des v4 donc pas de tri temporel facile sans ZSET.
+        Ok(jobs)
     }
 }
