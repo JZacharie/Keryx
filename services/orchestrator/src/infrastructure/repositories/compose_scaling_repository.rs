@@ -1,0 +1,81 @@
+use async_trait::async_trait;
+use anyhow::{Result, anyhow};
+use keryx_core::domain::ports::scaling_repository::ScalingRepository;
+use bollard::Docker;
+use bollard::container::StartContainerOptions;
+use bollard::container::StopContainerOptions;
+use std::time::Duration;
+use tokio::time::sleep;
+
+pub struct ComposeScalingRepository {
+    docker: Docker,
+}
+
+impl ComposeScalingRepository {
+    pub fn new() -> Result<Self> {
+        let docker = Docker::connect_with_local_defaults()?;
+        Ok(Self { docker })
+    }
+}
+
+#[async_trait]
+impl ScalingRepository for ComposeScalingRepository {
+    async fn scale_up(&self, _namespace: &str, deployment_name: &str) -> Result<()> {
+        // In Docker Compose, the deployment_name usually maps to the container name or service name
+        // We'll try to start the container.
+        tracing::info!("Docker Compose: Starting container {}...", deployment_name);
+        
+        match self.docker.start_container::<String>(deployment_name, None).await {
+            Ok(_) => tracing::info!("Successfully sent start command to container {}", deployment_name),
+            Err(e) => {
+                tracing::warn!("Failed to start container {} (it might be already running): {}", deployment_name, e);
+            }
+        }
+        
+        // Wait for ready via ping
+        self.wait_for_service_ping(deployment_name).await
+    }
+
+    async fn wait_for_service_ping(&self, service_name: &str) -> Result<()> {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        
+        // Map service name to actual URL if needed (in compose, service name is usually host name)
+        let endpoints = vec!["/health", "/docs", "/"];
+        let mut attempts = 0;
+        
+        tracing::info!("Waiting for service {} to respond...", service_name);
+        
+        while attempts < 30 { // 1 minute timeout for local
+            for endpoint in &endpoints {
+                let url = format!("http://{}{}", service_name, endpoint);
+                match client.get(&url).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        tracing::info!("Service {} is UP!", service_name);
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+            attempts += 1;
+            sleep(Duration::from_secs(2)).await;
+        }
+        
+        Err(anyhow!("Service {} failed to respond after 1 minute", service_name))
+    }
+
+    async fn scale_down(&self, _namespace: &str, deployment_name: &str) -> Result<()> {
+        tracing::info!("Docker Compose: Stopping container {}...", deployment_name);
+        
+        let options = Some(StopContainerOptions { t: 10 });
+        match self.docker.stop_container(deployment_name, options).await {
+            Ok(_) => tracing::info!("Successfully stopped container {}", deployment_name),
+            Err(e) => {
+                tracing::warn!("Failed to stop container {}: {}", deployment_name, e);
+            }
+        }
+        
+        Ok(())
+    }
+}

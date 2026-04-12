@@ -1,113 +1,161 @@
+version: '3.8'
+
 services:
-  voice-cloner-coqui:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    container_name: keryx-orchestrator
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - EXTRACTOR_URL=http://extractor:8010
+      - DEWATERMARK_URL=http://dewatermark:8011
+      - VOICE_EXTRACTOR_URL=http://voice-extractor:8012
+      - VIDEO_COMPOSER_URL=http://video-composer:8013
+      - VIDEO_GENERATOR_URL=http://video-generator:8014
+      - VOICE_CLONER_URL=http://voice-cloner:9880
+      - PPTX_URL=http://pptx-builder:8002
+      - API_KEY=${API_KEY:-changeme}
+    depends_on:
+      - redis
+    networks:
+      - keryx-net
+
+  extractor:
+    build:
+      context: ./services/extractor
+    container_name: keryx-extractor
+    environment:
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+    networks:
+      - keryx-net
+
+  dewatermark:
+    build:
+      context: ./services/dewatermark
+    container_name: keryx-dewatermark
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+    networks:
+      - keryx-net
+
+  voice-extractor:
+    build:
+      context: ./services/voice-extractor
+    container_name: keryx-voice-extractor
+    environment:
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+    networks:
+      - keryx-net
+
+  video-composer:
+    build:
+      context: ./services/video-composer
+    container_name: keryx-video-composer
+    environment:
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+    networks:
+      - keryx-net
+
+  video-generator:
+    build:
+      context: ./services/video-generator
+    container_name: keryx-video-generator
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+    networks:
+      - keryx-net
+
+  voice-cloner:
     build:
       context: ./services/voice-cloner
-    container_name: keryx-voice-cloner-coqui
-    ports:
-      - "9880:9880"
+    container_name: keryx-voice-cloner
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
-      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
     volumes:
       - coqui-models:/root/.local/share/tts
-      - .:/app/host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  diffusion-engine:
-    build:
-      context: ./services/diffusion-engine
-    container_name: keryx-diffusion-engine
-    ports:
-      - "8000:8000"
-    environment:
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
-      - S3_BUCKET=${S3_BUCKET}
-      - MODEL_ID=${DIFFUSION_MODEL_ID}
-      - HF_TOKEN=${HF_TOKEN}
-    volumes:
-      - keryx-cache:/app/huggingface
-      - ./outputs:/app/outputs
-      - .:/app/host:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  wan2gp:
-    build:
-      context: ./services/wan2gp
-    container_name: keryx-wan2gp
-    ports:
-      - "8001:8001"
-    environment:
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
-      - S3_BUCKET=${S3_BUCKET}
-      - HF_TOKEN=${HF_TOKEN}
-    volumes:
-      - keryx-cache:/app/.cache
-      - ./outputs:/app/outputs
-      - .:/app/host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    networks:
+      - keryx-net
 
   pptx-builder:
     build:
       context: ./services/pptx-builder
     container_name: keryx-pptx-builder
-    ports:
-      - "8002:8002"
     environment:
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
-      - S3_BUCKET=${S3_BUCKET}
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
+      - S3_BUCKET=${S3_BUCKET:-keryx}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+    networks:
+      - keryx-net
 
-  video-processor:
+  redis:
+    image: redis:7-alpine
+    container_name: keryx-redis
+    networks:
+      - keryx-net
+
+  frontend:
     build:
-      context: ./services/video-processor
-      dockerfile: Dockerfile
-    container_name: keryx-video-processor
+      context: ./services/frontend
+    container_name: keryx-frontend
+    ports:
+      - "3001:3000"
     environment:
-      - VOICE_CLONER_URL=http://voice-cloner-coqui:9880
-      - DIFFUSION_ENGINE_URL=http://diffusion-engine:8000
-      - HF_TOKEN=${HF_TOKEN}
-    volumes:
-      - .:/app/host:ro
-      - ./outputs:/app/outputs
-      - whisper-cache:/app/whisper_models
-      - hf-cache:/app/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    depends_on:
-      voice-cloner-coqui:
-        condition: service_started
-      diffusion-engine:
-        condition: service_started
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    networks:
+      - keryx-net
+
+networks:
+  keryx-net:
+    driver: bridge
 
 volumes:
-  whisper-cache:
-  hf-cache:
-  keryx-cache:
   coqui-models:
+  keryx-cache:
