@@ -3,4 +3,4 @@ uvicorn[standard]==0.30.6
 pydantic==2.8.2
 aioboto3==13.0.0
 yt-dlp>=2024.10.07
-bgutil-ytdlp-pot-provider
+
