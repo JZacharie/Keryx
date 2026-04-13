@@ -128,7 +128,7 @@ impl ScalingRepository for KubeScalingRepository {
         let endpoints = vec!["/health", "/docs", "/"];
         let mut attempts = 0;
         
-        while attempts < 60 { // 5 minutes (60 * 5s)
+        while attempts < 12 { // 1 minute (12 * 5s)
             for endpoint in &endpoints {
                 let url = format!("http://{}:{}{}", service_name, port, endpoint);
                 match client.get(&url).send().await {
