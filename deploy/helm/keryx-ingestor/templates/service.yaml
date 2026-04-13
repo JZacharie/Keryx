@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "keryx-ingestor.fullname" . }}
+  name: {{ include "keryx-orchestrator.fullname" . }}
   labels:
-    {{- include "keryx-ingestor.labels" . | nindent 4 }}
+    {{- include "keryx-orchestrator.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "keryx-ingestor.selectorLabels" . | nindent 4 }}
+    {{- include "keryx-orchestrator.selectorLabels" . | nindent 4 }}

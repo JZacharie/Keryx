@@ -24,11 +24,11 @@ interface NodeInfo {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://ingestor.p.zacharie.org";
+  process.env.NEXT_PUBLIC_API_URL || "https://orchestrator.p.zacharie.org";
 
 const NODES: Omit<NodeInfo, "status" | "latency">[] = [
   {
-    name: "Ingestor",
+    name: "orchestrator",
     url: `${API_BASE}/health`,
     description: "Core pipeline orchestration service",
     icon: Server,

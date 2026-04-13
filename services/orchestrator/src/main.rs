@@ -7,7 +7,8 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use keryx_ingestor::{
+
+use keryx_orchestrator::{
     state::AppState,
     interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler},
     interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
@@ -32,27 +33,33 @@ use keryx_ingestor::{
     },
 };
 
+mod telemetry;
+
+
 #[tokio::main]
 async fn main() {
     // RAW HELLO - No runtime needed for this
-    println!(">>> KERYX INGESTOR: RAW HELLO FROM MAIN!");
+    println!(">>> KERYX ORCHESTRATOR: RAW HELLO FROM MAIN!");
     let _ = std::io::stdout().flush();
 
-    println!(">>> KERYX INGESTOR: Starting process...");
+    println!(">>> KERYX ORCHESTRATOR: Starting process...");
     let _ = std::io::stdout().flush();
 
-    use tracing_subscriber::{fmt, EnvFilter, prelude::*};
+    // --- OpenTelemetry : init traces + métriques → OpenObserve ---
+    // Les variables sont injectées via le Secret Kubernetes keryx-secrets
+    let otel_endpoint = std::env::var("OTEL_ENDPOINT")
+        .unwrap_or_else(|_| "http://localhost:5081".to_string());
+    let otel_auth_token = std::env::var("OTEL_AUTH_TOKEN")
+        .unwrap_or_else(|_| "Basic dW5zZXQ6dW5zZXQ=".to_string()); // fallback no-op
+    let otel_service_name = std::env::var("OTEL_SERVICE_NAME")
+        .unwrap_or_else(|_| "keryx-orchestrator".to_string());
 
-    tracing_subscriber::registry()
-        .with(fmt::layer()
-            .with_writer(std::io::stdout)
-            .with_ansi(false)
-            .with_target(true)
-            .with_thread_ids(true))
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
-        .init();
+    // _otel_guard doit vivre jusqu'à la fin du main (flush au Drop)
+    let _otel_guard = telemetry::init_telemetry(&otel_service_name, &otel_endpoint, &otel_auth_token);
 
-    println!(">>> KERYX INGESTOR: Initializing runtime...");
+    tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, otel_endpoint);
+
+    println!(">>> KERYX ORCHESTRATOR: Initializing runtime...");
     let _ = std::io::stdout().flush();
 
     if let Err(e) = run().await {
@@ -63,10 +70,11 @@ async fn main() {
     }
 }
 
+
 async fn run() -> anyhow::Result<()> {
     // Check for minimalist test mode
-    if std::env::var("INGESTOR_TEST").unwrap_or_default() == "true" {
-        println!(">>> KERYX INGESTOR: MINIMALIST TEST MODE ACTIVE! Sleeping 1 hour...");
+    if std::env::var("ORCHESTRATOR_TEST").unwrap_or_default() == "true" {
+        println!(">>> KERYX ORCHESTRATOR: MINIMALIST TEST MODE ACTIVE! Sleeping 1 hour...");
         let _ = std::io::stdout().flush();
         tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
         return Ok(());
@@ -80,7 +88,7 @@ async fn run() -> anyhow::Result<()> {
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx".to_string());
     let s3_region = std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
     let s3_endpoint = std::env::var("S3_ENDPOINT").ok();
-    
+
     // Service URLs
     let extractor_url = std::env::var("EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-extractor:8010".to_string());
     let dewatermark_url = std::env::var("DEWATERMARK_URL").unwrap_or_else(|_| "http://keryx-dewatermark:8011".to_string());
@@ -88,7 +96,7 @@ async fn run() -> anyhow::Result<()> {
     let video_composer_url = std::env::var("VIDEO_COMPOSER_URL").unwrap_or_else(|_| "http://keryx-video-composer:8013".to_string());
     let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-wan2gp:8014".to_string());
     let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voice-cloner:9880".to_string());
-    
+
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
     let api_key = std::env::var("API_KEY").unwrap_or_else(|_| "changeme".to_string());
@@ -96,7 +104,7 @@ async fn run() -> anyhow::Result<()> {
     // Initialize core repositories
     let job_repo = Arc::new(RedisJobRepository::new(&redis_url)?);
     let storage_repo = Arc::new(S3StorageRepository::new(&s3_region, &s3_bucket, s3_endpoint.as_deref()).await);
-    
+
     let scaling_mode = std::env::var("SCALING_MODE").unwrap_or_else(|_| "kube".to_string());
     let scaling_repo: Arc<dyn keryx_core::domain::ports::scaling_repository::ScalingRepository> = if scaling_mode == "compose" {
         tracing::info!("Using Docker Compose scaling mode");
@@ -174,27 +182,27 @@ async fn run() -> anyhow::Result<()> {
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!(">>> KERYX INGESTOR: Server listening on http://{}", listener.local_addr()?);
-    tracing::info!("Ingestor listening on http://{}", listener.local_addr()?);
+    println!(">>> KERYX ORCHESTRATOR: Server listening on http://{}", listener.local_addr()?);
+    tracing::info!("orchestrator listening on http://{}", listener.local_addr()?);
     let _ = std::io::stdout().flush();
 
     // Start server
     let server_handle = axum::serve(listener, app);
-    println!(">>> KERYX INGESTOR: Server handle created, awaiting...");
+    println!(">>> KERYX ORCHESTRATOR: Server handle created, awaiting...");
     let _ = std::io::stdout().flush();
 
     match server_handle.await {
         Ok(_) => {
-            println!(">>> KERYX INGESTOR: axum::serve finished with OK.");
+            println!(">>> KERYX ORCHESTRATOR: axum::serve finished with OK.");
             tracing::warn!("Server shutdown normally.");
         },
         Err(e) => {
-            println!(">>> KERYX INGESTOR: axum::serve finished with ERROR: {:?}", e);
+            println!(">>> KERYX ORCHESTRATOR: axum::serve finished with ERROR: {:?}", e);
             tracing::error!("Server error: {:?}", e);
         }
     }
 
-    println!(">>> KERYX INGESTOR: run() is exiting. This is unexpected for a long-running service.");
+    println!(">>> KERYX ORCHESTRATOR: run() is exiting. This is unexpected for a long-running service.");
     let _ = std::io::stdout().flush();
 
     Ok(())

@@ -12,12 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 RUN if getent passwd 1000; then \
-        existing_user=$(getent passwd 1000 | cut -d: -f1); \
-        usermod -l keryx "$existing_user"; \
-        groupmod -n keryx "$existing_user" 2>/dev/null || true; \
+    existing_user=$(getent passwd 1000 | cut -d: -f1); \
+    usermod -l keryx "$existing_user"; \
+    groupmod -n keryx "$existing_user" 2>/dev/null || true; \
     else \
-        groupadd -g 1000 keryx && \
-        useradd -r -u 1000 -g keryx -s /bin/false keryx; \
+    groupadd -g 1000 keryx && \
+    useradd -r -u 1000 -g keryx -s /bin/false keryx; \
     fi && \
     chown -R 1000:1000 /app
 
@@ -48,11 +48,11 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo chef cook --release --recipe-path recipe.json
 COPY . .
 RUN --mount=type=cache,target=/root/.cargo/registry \
-    cargo build --release --bin keryx-ingestor
+    cargo build --release --bin keryx-orchestrator
 
 # --- Minimal runtime image ---
 FROM runner AS release
-COPY --from=builder --chmod=755 /app/target/release/keryx-ingestor /usr/local/bin/keryx-ingestor
+COPY --from=builder --chmod=755 /app/target/release/keryx-orchestrator /usr/local/bin/keryx-orchestrator
 COPY --from=builder --chown=1000:1000 /app/services/orchestrator/static static
 USER 1000
-CMD ["/usr/local/bin/keryx-ingestor"]
+CMD ["/usr/local/bin/keryx-orchestrator"]

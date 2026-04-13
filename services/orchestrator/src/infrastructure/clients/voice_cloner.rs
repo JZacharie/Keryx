@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use super::otel_propagation::inject_trace_context;
+
 
 #[derive(Debug, Serialize)]
 pub struct CloneRequest {
@@ -40,11 +42,14 @@ impl VoiceClonerClient {
             output_key: None,
         };
 
-        let resp = self.client
-            .post(format!("{}/clone", self.base_url))
-            .json(&req)
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/clone", self.base_url))
+                .json(&req)
+        )
             .send()
             .await?;
+
 
         if !resp.status().is_success() {
             let error = resp.text().await?;

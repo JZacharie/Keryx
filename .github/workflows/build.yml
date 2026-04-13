@@ -648,7 +648,7 @@ jobs:
 
       - name: Quick Restart Pods
         run: |
-          # Restart frontend and ingestor pods by deletion (triggers recreation)
+          # Restart frontend and orchestrator pods by deletion (triggers recreation)
           # We target the components to ensure all pods associated with these deployments are refreshed
           kubectl delete pod -l app.kubernetes.io/component=frontend -n keryx --wait=false || true
           kubectl delete pod -l app.kubernetes.io/component=orchestrator -n keryx --wait=false || true

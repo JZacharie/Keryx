@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use super::otel_propagation::inject_trace_context;
+
 
 #[derive(Debug, Serialize)]
 pub struct ExtractRequest {
@@ -36,11 +38,14 @@ impl ExtractorClient {
             job_id: job_id.to_string(),
         };
 
-        let resp = self.client
-            .post(format!("{}/extract", self.base_url))
-            .json(&req)
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/extract", self.base_url))
+                .json(&req)
+        )
             .send()
             .await?;
+
 
         if !resp.status().is_success() {
             let error: String = resp.text().await?;

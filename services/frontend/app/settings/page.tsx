@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-const DEFAULT_API_URL = "https://ingestor.p.zacharie.org";
+const DEFAULT_API_URL = "https://orchestrator.p.zacharie.org";
 
 export default function SettingsPage() {
   const [apiUrl, setApiUrl] = useState(() => {
@@ -76,7 +76,7 @@ export default function SettingsPage() {
 
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
-            URL du backend Ingestor
+            URL du backend orchestrator
           </label>
           <input
             type="url"
@@ -112,14 +112,12 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={() => setAutoRefresh((v) => !v)}
-            className={`w-12 h-6 rounded-full transition-all relative ${
-              autoRefresh ? "bg-[#8A2BE2]" : "bg-slate-700"
-            }`}
+            className={`w-12 h-6 rounded-full transition-all relative ${autoRefresh ? "bg-[#8A2BE2]" : "bg-slate-700"
+              }`}
           >
             <div
-              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
-                autoRefresh ? "left-6" : "left-0.5"
-              }`}
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${autoRefresh ? "left-6" : "left-0.5"
+                }`}
             />
           </button>
         </div>
@@ -135,11 +133,10 @@ export default function SettingsPage() {
                 <button
                   key={s}
                   onClick={() => setRefreshInterval(s)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all border ${
-                    refreshInterval === s
-                      ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
-                      : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all border ${refreshInterval === s
+                    ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
+                    : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
+                    }`}
                 >
                   {s}s
                 </button>

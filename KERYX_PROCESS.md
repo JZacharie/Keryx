@@ -4,7 +4,7 @@ Keryx est un système automatisé de localisation de vidéos techniques, capable
 
 ## 🔄 Flux de Travail Global
 
-Le traitement suit une architecture hexagonale pilotée par le service `ingestor` (Rust/Axum) qui coordonne plusieurs moteurs d'IA spécialisés.
+Le traitement suit une architecture hexagonale pilotée par le service `orchestrator` (Rust/Axum) qui coordonne plusieurs moteurs d'IA spécialisés.
 
 ### Phase 0 : Orchestration & Mise à l'Échelle
 Avant de commencer, le système effectue un "Warm-up" de l'infrastructure :
@@ -22,7 +22,7 @@ Avant de commencer, le système effectue un "Warm-up" de l'infrastructure :
 ### Phase 3 : Extraction Visuelle et Nettoyage
 C'est ici que les diapositives (keyframes) sont isolées et nettoyées.
 1.  **Scene Detection** : `ffmpeg` détecte les changements de plans pour extraire les images clés uniques.
-2.  **Suppression des Watermarks** : 
+2.  **Suppression des Watermarks** :
     *   **Option NotebookLM** : Utilisation de `https://notebooklmstudio.com/` pour supprimer les watermarks si les ressources locales sont saturées ou pour des résultats spécifiques.
     *   **Fallback Local (Recommandé)** : Le **Keryx Diffusion Engine** intègre un algorithme spécifique (`remove_notebooklm_watermark`) qui utilise :
         *   Une ROI (Region of Interest) ciblée en bas à droite.
@@ -30,7 +30,7 @@ C'est ici que les diapositives (keyframes) sont isolées et nettoyées.
         *   Une reconstruction par inpainting (**OpenCV Telea**).
 
 ### Phase 4 : Transformation Linguistique
-*   **Traduction Contextuelle** : Passage du texte vers la langue cible (ex: FR) via **Ollama (Llama 3)**. 
+*   **Traduction Contextuelle** : Passage du texte vers la langue cible (ex: FR) via **Ollama (Llama 3)**.
 *   **Conservation Technique** : Le moteur est instruit pour préserver les termes techniques critiques.
 
 ### Phase 5 : Synthèse Vocale (TTS & Voice Cloning)
@@ -54,7 +54,7 @@ C'est ici que les diapositives (keyframes) sont isolées et nettoyées.
 Le pipeline privilégie la solution locale pour la robustesse et la confidentialité, mais peut intégrer des services externes.
 
 ### Algorithme Local (Diffusion Engine)
-Le module Rust appelle l'endpoint `/clean_watermark` du moteur de diffusion : 
+Le module Rust appelle l'endpoint `/clean_watermark` du moteur de diffusion :
 ```python
 # Extrait du code de traitement local (diffusion-engine/main.py)
 def remove_notebooklm_watermark(image):

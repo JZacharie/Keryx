@@ -60,7 +60,7 @@ interface CreateJobPayload {
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ingestor.p.zacharie.org";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://orchestrator.p.zacharie.org";
 const ENV_API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
 
 function getStatusLabel(status: JobStatus): string {
@@ -188,10 +188,10 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
               line.includes("ERROR") || line.includes("error")
                 ? "text-red-400"
                 : line.includes("warn") || line.includes("WARN")
-                ? "text-amber-400"
-                : line.includes("✅") || line.includes("completed")
-                ? "text-emerald-400"
-                : "text-slate-300"
+                  ? "text-amber-400"
+                  : line.includes("✅") || line.includes("completed")
+                    ? "text-emerald-400"
+                    : "text-slate-300"
             }
           >
             {line}
@@ -321,11 +321,10 @@ function CreateModal({
                 <button
                   key={lang}
                   onClick={() => toggleLang(lang)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all border ${
-                    selectedLangs.includes(lang)
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all border ${selectedLangs.includes(lang)
                       ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
                       : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                  }`}
+                    }`}
                 >
                   {lang}
                 </button>
