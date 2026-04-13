@@ -31,6 +31,8 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
+YOUTUBE_PO_TOKEN = os.getenv("YOUTUBE_PO_TOKEN")
+YOUTUBE_VISITOR_DATA = os.getenv("YOUTUBE_VISITOR_DATA")
 
 s3_session = aioboto3.Session()
 
@@ -79,29 +81,6 @@ def health():
     return {"status": "ok", "service": SERVICE_NAME, "version": "1.0.0"}
 
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Service starting up. Checking yt-dlp environment...")
-    try:
-        # Debug: Check yt-dlp version and detect plugins
-        version_cmd = ["yt-dlp", "--version"]
-        v_result = subprocess.run(version_cmd, capture_output=True, text=True)
-        logger.info(f"yt-dlp version: {v_result.stdout.strip()}")
-
-        # Debug: Check if pot provider plugin is recognized
-        # yt-dlp --list-extractors | grep pot
-        logger.info("Checking for PO Token provider plugins...")
-        help_cmd = ["yt-dlp", "--extractor-args", "youtube:help"]
-        h_result = subprocess.run(help_cmd, capture_output=True, text=True)
-        # On logge une partie de l'aide pour voir si getpot_wpc apparaît
-        if "getpot_wpc" in h_result.stdout or "getpot_wpc" in h_result.stderr:
-            logger.info("Found getpot_wpc provider in yt-dlp help!")
-        else:
-            logger.debug("getpot_wpc not explicitly found in help, but let's hope it's there.")
-    except Exception as e:
-        logger.error(f"Failed to run yt-dlp debug commands: {e}")
-
-
 @app.post("/extract", response_model=ExtractResponse)
 async def extract(req: ExtractRequest):
     request_id = str(uuid.uuid4())[:8]
@@ -123,7 +102,7 @@ async def extract(req: ExtractRequest):
             "--output", video_path,
             "--no-check-certificate",
             "--js-runtimes", "nodejs",
-            "--extractor-args", "youtube:player-client=web,ios;pot_provider=getpot_wpc",
+            "--extractor-args", f"youtube:player-client=web,ios{f';po_token={YOUTUBE_PO_TOKEN}' if YOUTUBE_PO_TOKEN else ''}{f';visitor_data={YOUTUBE_VISITOR_DATA}' if YOUTUBE_VISITOR_DATA else ''}",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
             "--print-to-file", "%(title)s", os.path.join(tmp_dir, "title.txt"),
             "--print-to-file", "%(duration)s", os.path.join(tmp_dir, "duration.txt"),
