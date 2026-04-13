@@ -90,12 +90,12 @@ async fn run() -> anyhow::Result<()> {
     let s3_endpoint = std::env::var("S3_ENDPOINT").ok();
 
     // Service URLs
-    let extractor_url = std::env::var("EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-extractor:8010".to_string());
-    let dewatermark_url = std::env::var("DEWATERMARK_URL").unwrap_or_else(|_| "http://keryx-dewatermark:8011".to_string());
-    let voice_extractor_url = std::env::var("VOICE_EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-voice-extractor:8012".to_string());
-    let video_composer_url = std::env::var("VIDEO_COMPOSER_URL").unwrap_or_else(|_| "http://keryx-video-composer:8013".to_string());
-    let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-wan2gp:8014".to_string());
-    let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voice-cloner:9880".to_string());
+    let extractor_url = std::env::var("EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-extractor:8000".to_string());
+    let dewatermark_url = std::env::var("DEWATERMARK_URL").unwrap_or_else(|_| "http://keryx-dewatermark:8000".to_string());
+    let voice_extractor_url = std::env::var("VOICE_EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-voice-extractor:8000".to_string());
+    let video_composer_url = std::env::var("VIDEO_COMPOSER_URL").unwrap_or_else(|_| "http://keryx-video-composer:8000".to_string());
+    let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-wan2gp:8000".to_string());
+    let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voice-cloner:8000".to_string());
 
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
