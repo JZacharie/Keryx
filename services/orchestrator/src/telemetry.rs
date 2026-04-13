@@ -30,13 +30,15 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 /// Guard qui flush et shutdown proprement les providers OTel à la fin du processus.
 pub struct OtelGuard {
-    meter_provider: SdkMeterProvider,
+    meter_provider: Option<SdkMeterProvider>,
 }
 
 impl Drop for OtelGuard {
     fn drop(&mut self) {
-        if let Err(err) = self.meter_provider.shutdown() {
-            eprintln!("[otel] meter_provider shutdown error: {err:?}");
+        if let Some(meter_provider) = &self.meter_provider {
+            if let Err(err) = meter_provider.shutdown() {
+                eprintln!("[otel] meter_provider shutdown error: {err:?}");
+            }
         }
         opentelemetry::global::shutdown_tracer_provider();
     }
@@ -132,16 +134,21 @@ fn init_tracer(resource: Resource, endpoint: &str, auth_token: &str) -> Tracer {
 /// Point d'entrée principal : initialise traces + métriques et branche sur tracing-subscriber.
 ///
 /// Le `OtelGuard` retourné **doit être maintenu en vie** jusqu'à l'arrêt du processus.
-pub fn init_telemetry(service_name: &str, endpoint: &str, auth_token: &str) -> OtelGuard {
+pub fn init_telemetry(service_name: &str, endpoint: Option<&str>, auth_token: Option<&str>) -> OtelGuard {
     let resource = build_resource(service_name);
 
-    let meter_provider = init_meter_provider(resource.clone(), endpoint, auth_token);
-    let tracer = init_tracer(resource, endpoint, auth_token);
+    let (meter_provider, tracer) = if let (Some(ep), Some(auth)) = (endpoint, auth_token) {
+        let mp = init_meter_provider(resource.clone(), ep, auth);
+        let tr = init_tracer(resource, ep, auth);
+        (Some(mp), Some(tr))
+    } else {
+        (None, None)
+    };
 
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"));
 
-    tracing_subscriber::registry()
+    let subscriber = tracing_subscriber::registry()
         .with(env_filter)
         .with(
             tracing_subscriber::fmt::layer()
@@ -149,10 +156,17 @@ pub fn init_telemetry(service_name: &str, endpoint: &str, auth_token: &str) -> O
                 .with_ansi(false)
                 .with_target(true)
                 .with_thread_ids(true),
-        )
-        .with(MetricsLayer::new(meter_provider.clone()))
-        .with(OpenTelemetryLayer::new(tracer))
-        .init();
+        );
+
+    // Add OTel layers ONLY if enabled
+    if let (Some(mp), Some(tr)) = (meter_provider.clone(), tracer) {
+        subscriber
+            .with(MetricsLayer::new(mp))
+            .with(OpenTelemetryLayer::new(tr))
+            .init();
+    } else {
+        subscriber.init();
+    }
 
     OtelGuard { meter_provider }
 }

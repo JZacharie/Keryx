@@ -45,19 +45,24 @@ async fn main() {
     println!(">>> KERYX ORCHESTRATOR: Starting process...");
     let _ = std::io::stdout().flush();
 
-    // --- OpenTelemetry : init traces + métriques → OpenObserve ---
-    // Les variables sont injectées via le Secret Kubernetes keryx-secrets
-    let otel_endpoint = std::env::var("OTEL_ENDPOINT")
-        .unwrap_or_else(|_| "http://localhost:5081".to_string());
-    let otel_auth_token = std::env::var("OTEL_AUTH_TOKEN")
-        .unwrap_or_else(|_| "Basic dW5zZXQ6dW5zZXQ=".to_string()); // fallback no-op
+    // --- OpenTelemetry : init traces + métriques (optionnel) ---
+    let otel_endpoint = std::env::var("OTEL_ENDPOINT").ok();
+    let otel_auth_token = std::env::var("OTEL_AUTH_TOKEN").ok();
     let otel_service_name = std::env::var("OTEL_SERVICE_NAME")
         .unwrap_or_else(|_| "keryx-orchestrator".to_string());
 
     // _otel_guard doit vivre jusqu'à la fin du main (flush au Drop)
-    let _otel_guard = telemetry::init_telemetry(&otel_service_name, &otel_endpoint, &otel_auth_token);
+    let _otel_guard = telemetry::init_telemetry(
+        &otel_service_name,
+        otel_endpoint.as_deref(),
+        otel_auth_token.as_deref()
+    );
 
-    tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, otel_endpoint);
+    if let Some(ep) = otel_endpoint {
+        tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, ep);
+    } else {
+        println!(">>> KERYX ORCHESTRATOR: OTel disabled (OTEL_ENDPOINT not set)");
+    }
 
     println!(">>> KERYX ORCHESTRATOR: Initializing runtime...");
     let _ = std::io::stdout().flush();
