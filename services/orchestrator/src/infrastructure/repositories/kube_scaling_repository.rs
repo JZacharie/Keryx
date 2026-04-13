@@ -65,9 +65,12 @@ impl ScalingRepository for KubeScalingRepository {
                     // We try to ping the service to ensure the ML model is actually loaded in VRAM.
                     // We discover the port from the Service object.
                     let service_port = if let Ok(s) = Api::<Service>::namespaced(self.client.clone(), namespace).get(deployment_name).await {
-                         s.spec.and_then(|spec| spec.ports.and_then(|p| p.first().map(|p| p.port))).unwrap_or(80) as u16
+                         let p = s.spec.and_then(|spec| spec.ports.and_then(|p| p.first().map(|p| p.port))).unwrap_or(8000);
+                         tracing::debug!("Discovered port {} for service {}", p, deployment_name);
+                         p as u16
                     } else {
-                        80
+                        tracing::debug!("Failed to discover port for service {}, falling back to 8000", deployment_name);
+                        8000
                     };
 
                     if let Err(e) = self.wait_for_service_ping(deployment_name, service_port).await {
