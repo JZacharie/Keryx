@@ -177,4 +177,4 @@ async def animate_image(req: AnimationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8014)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

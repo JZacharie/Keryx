@@ -18,5 +18,5 @@ ENV S3_BUCKET=keryx \
     USE_SDXL=false \
     PYTHONUNBUFFERED=1
 
-EXPOSE 8011
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8011"]
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

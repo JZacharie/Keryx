@@ -21,5 +21,5 @@ ENV S3_BUCKET=keryx \
 # Whisper télécharge les modèles au démarrage, volume recommandé
 VOLUME ["/root/.cache/whisper"]
 
-EXPOSE 8012
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8012"]
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
