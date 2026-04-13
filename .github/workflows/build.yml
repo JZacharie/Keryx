@@ -18,7 +18,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/keryx-ingestor
+  IMAGE_NAME: ${{ github.repository_owner }}/keryx-orchestrator
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -96,8 +96,8 @@ jobs:
   # ============================================================================
   # Phase 2: Containerization
   # ============================================================================
-  build-ingestor:
-    name: 🐳 Build Ingestor Image
+  build-orchestrator:
+    name: 🐳 Build Orchestrator Image
     needs: changes
     if: needs.changes.outputs.orchestrator == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-24.04
@@ -123,7 +123,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/jzacharie/keryx-ingestor
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-orchestrator
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -599,7 +599,7 @@ jobs:
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-ingestor, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
+    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
     if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -651,7 +651,7 @@ jobs:
           # Restart frontend and ingestor pods by deletion (triggers recreation)
           # We target the components to ensure all pods associated with these deployments are refreshed
           kubectl delete pod -l app.kubernetes.io/component=frontend -n keryx --wait=false || true
-          kubectl delete pod -l app.kubernetes.io/component=ingestor -n keryx --wait=false || true
+          kubectl delete pod -l app.kubernetes.io/component=orchestrator -n keryx --wait=false || true
 
       - name: Notify Slack
         if: success()
