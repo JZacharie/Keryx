@@ -39,9 +39,9 @@ spec:
         - name: S3_BUCKET
           value: "keryx"
         - name: AWS_ACCESS_KEY_ID
-          value: "minioadmin"
+          value: "keryx2"
         - name: AWS_SECRET_ACCESS_KEY
-          value: "minioadmin"
+          value: "4DoK6ArcksSBZJIznybMEleQ9cWMsCOTf02IdLII"
         - name: NVIDIA_VISIBLE_DEVICES
           value: "all"
         - name: NVIDIA_DRIVER_CAPABILITIES

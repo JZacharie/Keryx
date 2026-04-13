@@ -36,6 +36,8 @@ env:
   S3_BUCKET: "keryx-raw"
   S3_REGION: "eu-west-1"
   S3_ENDPOINT: "http://minio:9000"
+  AWS_ACCESS_KEY_ID: "keryx2"
+  AWS_SECRET_ACCESS_KEY: "4DoK6ArcksSBZJIznybMEleQ9cWMsCOTf02IdLII"
 
 imagePullSecrets:
   - name: ghcr-login
