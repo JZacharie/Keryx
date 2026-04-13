@@ -31,6 +31,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 /// Guard qui flush et shutdown proprement les providers OTel à la fin du processus.
 pub struct OtelGuard {
     meter_provider: Option<SdkMeterProvider>,
+    pub initialized: bool,
 }
 
 impl Drop for OtelGuard {
@@ -138,6 +139,11 @@ pub fn init_telemetry(service_name: &str, endpoint: Option<&str>, auth_token: Op
     let resource = build_resource(service_name);
 
     let (meter_provider, tracer) = if let (Some(ep), Some(auth)) = (endpoint, auth_token) {
+        // Validation DNS avant d'initialiser (évite le log spam si injoignable)
+        if !is_endpoint_resolvable(ep) {
+            return OtelGuard { meter_provider: None, initialized: false };
+        }
+
         let mp = init_meter_provider(resource.clone(), ep, auth);
         let tr = init_tracer(resource, ep, auth);
         (Some(mp), Some(tr))
@@ -168,5 +174,35 @@ pub fn init_telemetry(service_name: &str, endpoint: Option<&str>, auth_token: Op
         subscriber.init();
     }
 
-    OtelGuard { meter_provider }
+    let initialized = meter_provider.is_some();
+    OtelGuard { 
+        meter_provider,
+        initialized,
+    }
+}
+
+/// Vérifie si l'endpoint est résolvable via DNS.
+fn is_endpoint_resolvable(endpoint: &str) -> bool {
+    let host_port = endpoint
+        .strip_prefix("http://").unwrap_or(endpoint)
+        .strip_prefix("https://").unwrap_or(endpoint)
+        .split('/')
+        .next()
+        .unwrap_or(endpoint);
+
+    // Tentative de résolution synchronisée (bloquante pendant un court instant, acceptable à l'init)
+    // On utilise std::net::ToSocketAddrs pour une vérification simple sans spawn complexe
+    use std::net::ToSocketAddrs;
+    
+    // Si pas de port, on ajoute un port par défaut pour la résolution
+    let destination = if host_port.contains(':') {
+        host_port.to_string()
+    } else {
+        format!("{}:5081", host_port)
+    };
+
+    match destination.to_socket_addrs() {
+        Ok(mut addrs) => addrs.next().is_some(),
+        Err(_) => false,
+    }
 }
