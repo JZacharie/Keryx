@@ -73,9 +73,7 @@ impl ScalingRepository for KubeScalingRepository {
                         8000
                     };
 
-                    if let Err(e) = self.wait_for_service_ping(deployment_name, service_port).await {
-                        tracing::warn!("Service {}/{} ready replicas > 0 but health check failed on port {}: {}. Continuing anyway...", namespace, deployment_name, service_port, e);
-                    }
+                    self.wait_for_service_ping(deployment_name, service_port).await?;
                     
                     return Ok(());
                 }
