@@ -52,14 +52,18 @@ async fn main() {
         .unwrap_or_else(|_| "keryx-orchestrator".to_string());
 
     // _otel_guard doit vivre jusqu'à la fin du main (flush au Drop)
-    let _otel_guard = telemetry::init_telemetry(
+    let otel_guard = telemetry::init_telemetry(
         &otel_service_name,
         otel_endpoint.as_deref(),
         otel_auth_token.as_deref()
     );
 
-    if let Some(ep) = otel_endpoint {
-        tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, ep);
+    if otel_guard.initialized {
+        if let Some(ep) = otel_endpoint {
+            tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, ep);
+        }
+    } else if otel_endpoint.is_some() {
+        println!(">>> KERYX ORCHESTRATOR: OTel disabled (endpoint {} is unreachable)", otel_endpoint.unwrap());
     } else {
         println!(">>> KERYX ORCHESTRATOR: OTel disabled (OTEL_ENDPOINT not set)");
     }
