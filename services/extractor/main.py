@@ -31,8 +31,6 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
-YOUTUBE_PO_TOKEN = os.getenv("YOUTUBE_PO_TOKEN")
-YOUTUBE_VISITOR_DATA = os.getenv("YOUTUBE_VISITOR_DATA")
 
 s3_session = aioboto3.Session()
 
@@ -102,7 +100,7 @@ async def extract(req: ExtractRequest):
             "--output", video_path,
             "--no-check-certificate",
             "--js-runtimes", "nodejs",
-            "--extractor-args", f"youtube:player-client=web,ios{f';po_token={YOUTUBE_PO_TOKEN}' if YOUTUBE_PO_TOKEN else ''}{f';visitor_data={YOUTUBE_VISITOR_DATA}' if YOUTUBE_VISITOR_DATA else ''}",
+            "--extractor-args", "youtube:player-client=web,ios",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
             "--print-to-file", "%(title)s", os.path.join(tmp_dir, "title.txt"),
             "--print-to-file", "%(duration)s", os.path.join(tmp_dir, "duration.txt"),
