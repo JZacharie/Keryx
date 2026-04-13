@@ -3,6 +3,9 @@ FROM python:3.11-slim
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl ffmpeg aria2 nodejs chromium \
+    libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2 \
+    libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 \
+    libgbm1 libpangocairo-1.0-0 libpango-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
