@@ -24,8 +24,8 @@ spec:
           ports:
             - containerPort: 8010
           env:
-+            - name: LOG_LEVEL
-+              value: "debug"
+            - name: LOG_LEVEL
+              value: "debug"
             - name: S3_ENDPOINT
               value: "https://minio-170-api.zacharie.org"
             - name: S3_BUCKET
@@ -53,5 +53,6 @@ spec:
   selector:
     app.kubernetes.io/component: extractor
   ports:
-    - port: 8010
+    - name: http
+      port: 8010
       targetPort: 8010
