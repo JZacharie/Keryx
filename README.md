@@ -71,7 +71,7 @@ OLLAMA_URL=http://192.168.0.191:11434
 ```
 .
 ├── services/
-│   └── ingestor/         # Core Rust service (Axum)
+│   └── orchestrator/         # Core Rust service (Axum)
 │       ├── src/          # Hexagonal project structure
 │       ├── static/       # Cyberpunk Web UI
 │       └── Dockerfile    # Optimized multi-stage build
@@ -82,7 +82,7 @@ OLLAMA_URL=http://192.168.0.191:11434
 ```
 
 ## 🚦 Status: 🟢 Production Ready (Phase 1 & 2)
-The Ingestor unit and Diffusion Engine are fully operational on GPU-enabled nodes (`vm169`), capable of end-to-end video localization with AI-driven visual re-styling and multilingual transcription.
+The orchestrator unit and Diffusion Engine are fully operational on GPU-enabled nodes (`vm169`), capable of end-to-end video localization with AI-driven visual re-styling and multilingual transcription.
 
 ---
 *Powered by Rust, Ollama, Whisper, and the Ancient Greek spirit.*

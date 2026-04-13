@@ -14,7 +14,7 @@ env:
 
 jobs:
   validate-rust:
-    name: 🦀 Validate Rust (Ingestor & Core)
+    name: 🦀 Validate Rust (orchestrator & Core)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use super::otel_propagation::inject_trace_context;
+
 
 #[derive(Debug, Serialize)]
 pub struct SlideInput {
@@ -76,11 +78,14 @@ impl VideoComposerClient {
             fps: 24,
         };
 
-        let resp = self.client
-            .post(format!("{}/compose", self.base_url))
-            .json(&req)
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/compose", self.base_url))
+                .json(&req)
+        )
             .send()
             .await?;
+
 
         if !resp.status().is_success() {
             let error = resp.text().await?;
@@ -97,11 +102,14 @@ impl VideoComposerClient {
             output_key: None,
         };
 
-        let resp = self.client
-            .post(format!("{}/concat_audio", self.base_url))
-            .json(&req)
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/concat_audio", self.base_url))
+                .json(&req)
+        )
             .send()
             .await?;
+
 
         if !resp.status().is_success() {
             let error = resp.text().await?;
@@ -119,11 +127,14 @@ impl VideoComposerClient {
             output_prefix: None,
         };
 
-        let resp = self.client
-            .post(format!("{}/detect_slides", self.base_url))
-            .json(&req)
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/detect_slides", self.base_url))
+                .json(&req)
+        )
             .send()
             .await?;
+
 
         if !resp.status().is_success() {
             let error = resp.text().await?;

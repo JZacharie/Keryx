@@ -30,7 +30,7 @@ interface Job {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://ingestor.p.zacharie.org";
+  process.env.NEXT_PUBLIC_API_URL || "https://orchestrator.p.zacharie.org";
 
 function getStatusLabel(status: JobStatus): string {
   if (status === "Pending") return "pending";
@@ -138,10 +138,10 @@ function LogDrawer({
               line.includes("ERROR") || line.includes("error")
                 ? "text-red-400"
                 : line.includes("warn") || line.includes("WARN")
-                ? "text-amber-400"
-                : line.includes("✅") || line.includes("completed")
-                ? "text-emerald-400"
-                : "text-slate-300"
+                  ? "text-amber-400"
+                  : line.includes("✅") || line.includes("completed")
+                    ? "text-emerald-400"
+                    : "text-slate-300"
             }
           >
             {line}
@@ -219,11 +219,10 @@ export default function HistoryPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold capitalize transition-all border ${
-                filter === f
+              className={`px-4 py-1.5 rounded-full text-sm font-bold capitalize transition-all border ${filter === f
                   ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
                   : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-              }`}
+                }`}
             >
               {f}{" "}
               <span className="ml-1 opacity-60">

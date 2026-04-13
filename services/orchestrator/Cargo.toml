@@ -1,15 +1,15 @@
 [package]
-name = "keryx-ingestor"
+name = "keryx-orchestrator"
 version = "0.5.0"
 authors = ["Joseph ZACHARIE <joseph@example.com>"]
 edition = "2024"
 
 [lib]
-name = "keryx_ingestor"
+name = "keryx_orchestrator"
 path = "src/lib.rs"
 
 [[bin]]
-name = "keryx-ingestor"
+name = "keryx-orchestrator"
 path = "src/main.rs"
 
 [dependencies]
@@ -36,6 +36,14 @@ redis = { version = "0.25", features = ["tokio-comp", "json"] }
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# OpenTelemetry — APM + Service Map → OpenObserve
+opentelemetry = { version = "0.24", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic", "trace", "metrics"] }
+opentelemetry_sdk = { version = "0.24", features = ["rt-tokio", "trace", "metrics"] }
+opentelemetry-semantic-conventions = "0.16"
+tracing-opentelemetry = "0.25"
+tonic = "0.12"
 
 # Error handling
 anyhow = "1.0"

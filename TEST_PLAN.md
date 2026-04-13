@@ -8,8 +8,8 @@ Run with `cargo test -p keryx-core` to verify domain logic in isolation (< 5 sec
 - **Scope**: Entities (`Job` state transitions), Ports, and pure logic.
 - **Rules**: Zero I/O operations. Network or Database calls must use Mock implementations of the domain Repositories.
 
-## 2. Integration Tests (`keryx-ingestor`)
-Run with `cargo test -p keryx-ingestor` to verify adapters and HTTP routes.
+## 2. Integration Tests (`keryx-orchestrator`)
+Run with `cargo test -p keryx-orchestrator` to verify adapters and HTTP routes.
 
 - **Scope**: Axum Route Handlers, Redis Repository instantiation, and S3 Upload logic.
 - **Methodology**: Use `testcontainers-rs` to automatically spin up temporary Redis and MinIO instances during the test run.

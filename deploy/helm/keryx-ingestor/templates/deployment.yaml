@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "keryx-ingestor.fullname" . }}
+  name: {{ include "keryx-orchestrator.fullname" . }}
   labels:
-    {{- include "keryx-ingestor.labels" . | nindent 4 }}
+    {{- include "keryx-orchestrator.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "keryx-ingestor.selectorLabels" . | nindent 6 }}
+      {{- include "keryx-orchestrator.selectorLabels" . | nindent 6 }}
   strategy:
     type: Recreate
   revisionHistoryLimit: 3
@@ -19,9 +19,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "keryx-ingestor.selectorLabels" . | nindent 8 }}
+        {{- include "keryx-orchestrator.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "keryx-ingestor.fullname" . }}
+      serviceAccountName: {{ include "keryx-orchestrator.fullname" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
