@@ -38,6 +38,12 @@ env:
   S3_ENDPOINT: "http://minio:9000"
   AWS_ACCESS_KEY_ID: "keryx2"
   AWS_SECRET_ACCESS_KEY: "4DoK6ArcksSBZJIznybMEleQ9cWMsCOTf02IdLII"
+  EXTRACTOR_URL: "http://keryx-extractor:8010"
+  DEWATERMARK_URL: "http://keryx-dewatermark:8000"
+  VOICE_EXTRACTOR_URL: "http://keryx-voice-extractor:8000"
+  VIDEO_COMPOSER_URL: "http://keryx-video-composer:8000"
+  VIDEO_GENERATOR_URL: "http://keryx-wan2gp:8014"
+  VOICE_CLONER_URL: "http://keryx-voice-cloner:9880"
 
 imagePullSecrets:
   - name: ghcr-login
