@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: voice-cloner
+  name: keryx-voice-cloner
   namespace: keryx
   labels:
-    app: voice-cloner
+    app.kubernetes.io/component: voice-cloner
 spec:
   replicas: 0
   selector:
     matchLabels:
-      app: voice-cloner
+      app.kubernetes.io/component: voice-cloner
   template:
     metadata:
       labels:
-        app: voice-cloner
+        app.kubernetes.io/component: voice-cloner
     spec:
       runtimeClassName: nvidia
       nodeSelector:
@@ -73,12 +73,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: voice-cloner
+  name: keryx-voice-cloner
   namespace: keryx
 spec:
   selector:
-    app: voice-cloner
+    app.kubernetes.io/component: voice-cloner
   ports:
-  - port: 9880
+  - name: http
+    port: 9880
     targetPort: 9880
     protocol: TCP
