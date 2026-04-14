@@ -47,7 +47,7 @@ class S3Manager:
     @asynccontextmanager
     async def get_client(self):
         config = botocore.client.Config(
-            signature_version='s3v4',
+            signature_version=botocore.UNSIGNED,
             s3={'addressing_style': 'path'}
         )
         async with self.session.client(
