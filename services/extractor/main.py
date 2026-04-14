@@ -14,6 +14,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 import aioboto3
+import botocore.client
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, HttpUrl, Field
 
@@ -31,6 +32,7 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
+S3_REGION = os.getenv("S3_REGION", "us-east-1")
 
 # --- Async S3 Client Management ---
 class S3Manager:
@@ -39,11 +41,17 @@ class S3Manager:
 
     @asynccontextmanager
     async def get_client(self):
+        config = botocore.client.Config(
+            signature_version='s3v4',
+            s3={'addressing_style': 'path'}
+        )
         async with self.session.client(
             "s3",
             endpoint_url=S3_ENDPOINT,
             aws_access_key_id=S3_ACCESS_KEY,
             aws_secret_access_key=S3_SECRET_KEY,
+            config=config,
+            region_name=S3_REGION,
             verify=False, # Often needed for local S3/MinIO
         ) as client:
             yield client
