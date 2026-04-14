@@ -41,8 +41,8 @@ app = FastAPI(title="Keryx Diffusion Engine")
 
 # Configuration
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
-S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 MODEL_ID = os.getenv("MODEL_ID", "stabilityai/sdxl-turbo")
 CONTROLNET_ID = "diffusers/controlnet-canny-sdxl-1.0"
