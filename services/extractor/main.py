@@ -25,6 +25,11 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.extractor")
+ 
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Filter out noisy health check access logs
+        return "/health" not in record.getMessage()
 
 # --- Configuration ---
 SERVICE_NAME = "keryx-extractor"
@@ -217,5 +222,7 @@ async def extract(req: ExtractRequest):
 
 if __name__ == "__main__":
     import uvicorn
+    # Filter out health check access logs from uvicorn
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
     # Use standard uvicorn worker for development
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
