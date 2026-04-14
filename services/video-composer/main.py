@@ -33,8 +33,8 @@ app = FastAPI(title="Keryx Video Composer", version="1.0.0")
 
 SERVICE_NAME = "keryx-video-composer"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
-S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 
 s3_session = aioboto3.Session()
