@@ -1,6 +1,5 @@
 """
-keryx-extractor - Video download and audio extraction service.
-POST /extract : yt-dlp -> S3 (video + audio)
+keryx-extractor - Robust Video download and audio extraction service.
 """
 import os
 import uuid
@@ -8,63 +7,55 @@ import time
 import asyncio
 import logging
 import tempfile
-import subprocess
 import shutil
-from typing import Optional
+import re
+from typing import Optional, Dict, Any
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 import aioboto3
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, HttpUrl, Field
 
+# --- Logging Setup ---
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.extractor")
 
-app = FastAPI(title="Keryx Extractor", version="1.0.0")
-
+# --- Configuration ---
 SERVICE_NAME = "keryx-extractor"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 
-s3_session = aioboto3.Session()
+# --- Async S3 Client Management ---
+class S3Manager:
+    def __init__(self):
+        self.session = aioboto3.Session()
 
+    @asynccontextmanager
+    async def get_client(self):
+        async with self.session.client(
+            "s3",
+            endpoint_url=S3_ENDPOINT,
+            aws_access_key_id=S3_ACCESS_KEY,
+            aws_secret_access_key=S3_SECRET_KEY,
+            verify=False, # Often needed for local S3/MinIO
+        ) as client:
+            yield client
 
+s3_manager = S3Manager()
 
-def _s3_client():
-    return s3_session.client(
-        "s3",
-        endpoint_url=S3_ENDPOINT,
-        aws_access_key_id=S3_ACCESS_KEY,
-        aws_secret_access_key=S3_SECRET_KEY,
-        verify=False,
-    )
-
-
-async def upload_file(local_path: str, s3_key: str, content_type: str) -> str:
-    async with _s3_client() as s3:
-        await s3.upload_file(
-            local_path,
-            S3_BUCKET,
-            s3_key,
-            ExtraArgs={"ContentType": content_type},
-        )
-    return f"{S3_ENDPOINT}/{S3_BUCKET}/{s3_key}"
-
-
+# --- Models ---
 class ExtractRequest(BaseModel):
-    url: str
-    job_id: str
-    # Optional: force output format
+    url: str # HttpUrl can be too strict for some yt-dlp inputs
+    job_id: str = Field(..., description="Unique ID for the job")
     audio_format: str = "wav"
-    # Optional: limit video quality to save time
     video_quality: str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-
 
 class ExtractResponse(BaseModel):
     status: str
@@ -73,26 +64,81 @@ class ExtractResponse(BaseModel):
     duration: float
     title: str
     service: str = SERVICE_NAME
+    request_id: str
 
+# --- App Lifecycle ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Can add version checks for tools here
+    logger.info(f"Starting {SERVICE_NAME}...")
+    yield
+    # Shutdown: Clean resources if any
 
+app = FastAPI(title="Keryx Extractor", version="1.1.0", lifespan=lifespan)
+
+# --- Helper Functions ---
+async def run_command(cmd: list[str], request_id: str, label: str) -> str:
+    logger.info(f"[{request_id}] Running {label}: {' '.join(cmd)}")
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    
+    if process.returncode != 0:
+        error_msg = stderr.decode().strip()
+        logger.error(f"[{request_id}] {label} failed with code {process.returncode}: {error_msg}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"{label} failed: {error_msg[-500:]}"
+        )
+    return stdout.decode().strip()
+
+async def upload_to_s3(local_path: str, s3_key: str, content_type: str, request_id: str) -> str:
+    logger.info(f"[{request_id}] Uploading to S3: {s3_key}")
+    async with s3_manager.get_client() as s3:
+        await s3.upload_file(
+            local_path,
+            S3_BUCKET,
+            s3_key,
+            ExtraArgs={"ContentType": content_type},
+        )
+    return f"{S3_ENDPOINT}/{S3_BUCKET}/{s3_key}"
+
+# --- Endpoints ---
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": SERVICE_NAME, "version": "1.0.0"}
-
+    return {"status": "ok", "service": SERVICE_NAME, "version": "1.1.0"}
 
 @app.post("/extract", response_model=ExtractResponse)
 async def extract(req: ExtractRequest):
     request_id = str(uuid.uuid4())[:8]
-    logger.info(f"[{request_id}] Extract request for job={req.job_id} url={req.url}")
+    logger.info(f"[{request_id}] NEW REQUEST | job={req.job_id} | url={req.url}")
     start_time = time.time()
 
-    tmp_dir = tempfile.mkdtemp(prefix=f"keryx_extract_{request_id}_")
+    tmp_dir = tempfile.mkdtemp(prefix=f"keryx_{request_id}_")
     try:
-        # -- 1. Download with yt-dlp ----------------------------------
-        video_path = os.path.join(tmp_dir, "video.mp4")
-        audio_wav = os.path.join(tmp_dir, "audio.wav")
+        # -- 1. Metadata Pre-extraction ----------------------------
+        logger.info(f"[{request_id}] Fetching metadata...")
+        meta_cmd = [
+            "yt-dlp",
+            "--no-playlist",
+            "--print", "%(title)s",
+            "--print", "%(duration)s",
+            "--no-check-certificate",
+            req.url
+        ]
+        meta_output = await run_command(meta_cmd, request_id, "yt-dlp-metadata")
+        meta_lines = meta_output.splitlines()
+        title = meta_lines[0] if len(meta_lines) > 0 else "unknown"
+        try:
+            duration = float(meta_lines[1]) if len(meta_lines) > 1 else 0.0
+        except (ValueError, IndexError):
+            duration = 0.0
 
-        logger.info(f"[{request_id}] Downloading video with yt-dlp...")
+        # -- 2. Download Video -------------------------------------
+        video_path = os.path.join(tmp_dir, "video.mp4")
         ytdlp_cmd = [
             "yt-dlp",
             "--no-playlist",
@@ -103,67 +149,41 @@ async def extract(req: ExtractRequest):
             "--js-runtimes", "nodejs",
             "--extractor-args", "youtube:player-client=android",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "--print-to-file", "%(title)s", os.path.join(tmp_dir, "title.txt"),
-            "--print-to-file", "%(duration)s", os.path.join(tmp_dir, "duration.txt"),
             req.url,
         ]
-        result = await asyncio.to_thread(
-            subprocess.run, ytdlp_cmd, capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            raise HTTPException(500, f"yt-dlp failed: {result.stderr[-500:]}")
+        await run_command(ytdlp_cmd, request_id, "yt-dlp-download")
 
+        # Fallback if output filename was different
         if not os.path.exists(video_path):
-            # Try to find file with alternative name
             mp4_files = list(Path(tmp_dir).glob("*.mp4"))
             if not mp4_files:
-                raise HTTPException(500, "yt-dlp did not produce any mp4 file")
+                raise HTTPException(500, "Download succeeded but no MP4 file found.")
             video_path = str(mp4_files[0])
 
-        # Metadata reading
-        title = "unknown"
-        duration = 0.0
-        title_file = os.path.join(tmp_dir, "title.txt")
-        duration_file = os.path.join(tmp_dir, "duration.txt")
-        if os.path.exists(title_file):
-            title = open(title_file).read().strip()
-        if os.path.exists(duration_file):
-            try:
-                duration = float(open(duration_file).read().strip())
-            except ValueError:
-                pass
-
-        logger.info(f"[{request_id}] Downloaded: '{title}' ({duration}s)")
-
-        # -- 2. Audio extraction with ffmpeg --------------------------------
-        logger.info(f"[{request_id}] Extracting audio to WAV...")
+        # -- 3. Extract Audio --------------------------------------
+        audio_path = os.path.join(tmp_dir, f"audio.{req.audio_format}")
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-i", video_path,
-            "-vn",
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",
-            "-ac", "1",
-            audio_wav,
+            "-vn", # No video
+            "-acodec", "pcm_s16le" if req.audio_format == "wav" else "libmp3lame",
+            "-ar", "16000", # 16kHz
+            "-ac", "1",     # Mono
+            audio_path,
         ]
-        result = await asyncio.to_thread(
-            subprocess.run, ffmpeg_cmd, capture_output=True
-        )
-        if result.returncode != 0:
-            raise HTTPException(500, f"ffmpeg audio extraction failed: {result.stderr.decode()[-500:]}")
+        await run_command(ffmpeg_cmd, request_id, "ffmpeg-audio")
 
-        # -- 3. Upload to S3 ----------------------------------------------
-        logger.info(f"[{request_id}] Uploading video and audio to S3...")
+        # -- 4. Parallel Upload to S3 ------------------------------
         video_key = f"jobs/{req.job_id}/source/video.mp4"
-        audio_key = f"jobs/{req.job_id}/source/audio.wav"
-
+        audio_key = f"jobs/{req.job_id}/source/audio.{req.audio_format}"
+        
         video_url, audio_url = await asyncio.gather(
-            upload_file(video_path, video_key, "video/mp4"),
-            upload_file(audio_wav, audio_key, "audio/wav"),
+            upload_to_s3(video_path, video_key, "video/mp4", request_id),
+            upload_to_s3(audio_path, audio_key, f"audio/{req.audio_format}", request_id),
         )
 
         elapsed = time.time() - start_time
-        logger.info(f"[{request_id}] Done in {elapsed:.1f}s. video={video_url} audio={audio_url}")
+        logger.info(f"[{request_id}] PROCESSED OK: '{title}' in {elapsed:.1f}s")
 
         return ExtractResponse(
             status="success",
@@ -171,17 +191,18 @@ async def extract(req: ExtractRequest):
             audio_url=audio_url,
             duration=duration,
             title=title,
+            request_id=request_id
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"[{request_id}] Unexpected error")
-        raise HTTPException(500, str(e))
+        logger.exception(f"[{request_id}] CRITICAL ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use standard uvicorn worker for development
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
