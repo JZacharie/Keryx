@@ -69,15 +69,22 @@ impl IngestVideoUseCase {
     pub async fn execute(&self, job_id: Uuid) -> Result<()> {
         let res = self.execute_internal(job_id).await;
 
-        // Final Scale Down — toujours exécuté peu importe succès ou échec
-        self.log(job_id, "Phase finale : scale down de tous les services AI...").await;
-        // Le scaling pourra être refactorisé plus tard pour cibler les nouveaux microservices
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-extractor").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-dewatermark").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+        // Final Scale Down - skipped if error or debug mode enabled to allow log inspection
+        let keep_workers_env = std::env::var("KERYX_DEBUG_KEEP_WORKERS").unwrap_or_default() == "true";
+        
+        if res.is_ok() && !keep_workers_env {
+            self.log(job_id, "Phase finale : scale down de tous les services AI...").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-extractor").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-dewatermark").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+        } else if res.is_err() {
+            self.log(job_id, "⚠️ Erreur détectée : Les workers sont maintenus actifs pour inspection des logs.").await;
+        } else {
+            self.log(job_id, "ℹ️ Mode DEBUG actif : Les workers sont maintenus actifs.").await;
+        }
 
         if let Err(e) = &res {
             let error_details = format!("{:?}", e);
