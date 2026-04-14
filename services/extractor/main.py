@@ -127,6 +127,9 @@ async def extract(req: ExtractRequest):
             "--print", "%(title)s",
             "--print", "%(duration)s",
             "--no-check-certificate",
+            "--js-runtimes", "nodejs",
+            "--ignore-config",
+            "--extractor-args", "youtube:player-client=android",
             req.url
         ]
         meta_output = await run_command(meta_cmd, request_id, "yt-dlp-metadata")
@@ -142,6 +145,7 @@ async def extract(req: ExtractRequest):
         ytdlp_cmd = [
             "yt-dlp",
             "--no-playlist",
+            "--ignore-config",
             "--format", f"{req.video_quality}/best",
             "--merge-output-format", "mp4",
             "--output", video_path,
