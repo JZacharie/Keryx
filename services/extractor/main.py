@@ -104,14 +104,15 @@ async def run_command(cmd: list[str], request_id: str, label: str) -> str:
     return stdout.decode().strip()
 
 async def upload_to_s3(local_path: str, s3_key: str, content_type: str, request_id: str) -> str:
-    logger.info(f"[{request_id}] Uploading to S3: {s3_key}")
+    logger.info(f"[{request_id}] Uploading to S3: {s3_key} (Single PutObject)")
     async with s3_manager.get_client() as s3:
-        await s3.upload_file(
-            local_path,
-            S3_BUCKET,
-            s3_key,
-            ExtraArgs={"ContentType": content_type},
-        )
+        with open(local_path, "rb") as f:
+            await s3.put_object(
+                Bucket=S3_BUCKET,
+                Key=s3_key,
+                Body=f,
+                ContentType=content_type
+            )
     return f"{S3_ENDPOINT}/{S3_BUCKET}/{s3_key}"
 
 # --- Endpoints ---
