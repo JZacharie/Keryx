@@ -36,8 +36,6 @@ env:
   S3_BUCKET: "keryx-raw"
   S3_REGION: "eu-west-1"
   S3_ENDPOINT: "http://minio:9000"
-  AWS_ACCESS_KEY_ID: "keryx2"
-  AWS_SECRET_ACCESS_KEY: "[REDACTED_AWS_SECRET]"
   EXTRACTOR_URL: "http://keryx-extractor:8010"
   DEWATERMARK_URL: "http://keryx-dewatermark:8000"
   VOICE_EXTRACTOR_URL: "http://keryx-voice-extractor:8000"

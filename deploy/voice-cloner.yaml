@@ -38,10 +38,7 @@ spec:
           value: "https://minio-170-api.zacharie.org"
         - name: S3_BUCKET
           value: "keryx"
-        - name: AWS_ACCESS_KEY_ID
-          value: "keryx2"
-        - name: AWS_SECRET_ACCESS_KEY
-          value: "[REDACTED_AWS_SECRET]"
+
         - name: NVIDIA_VISIBLE_DEVICES
           value: "all"
         - name: NVIDIA_DRIVER_CAPABILITIES
