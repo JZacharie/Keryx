@@ -68,6 +68,8 @@ services:
       - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
       - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+    volumes:
+      - keryx-cache:/app/.cache/whisper
     networks:
       - keryx-net
 

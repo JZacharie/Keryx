@@ -39,6 +39,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama.ollama.svc.cluster.local:114
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 # TRANSLATOR_BACKEND: "ollama" (default — meilleure qualité) ou "google" (fallback gratuit)
 TRANSLATOR_BACKEND = os.getenv("TRANSLATOR_BACKEND", "ollama")
+WHISPER_CACHE_DIR = os.getenv("WHISPER_CACHE_DIR")
 
 # ── Whisper — chargement lazy ────────────────────────────────────────────────
 _whisper_model = None
@@ -54,7 +55,7 @@ async def get_whisper():
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Loading Whisper model '{WHISPER_MODEL}' on {device}...")
             _whisper_model = await asyncio.to_thread(
-                whisper.load_model, WHISPER_MODEL, device=device
+                whisper.load_model, WHISPER_MODEL, device=device, download_root=WHISPER_CACHE_DIR
             )
             logger.info("Whisper model loaded.")
     return _whisper_model
