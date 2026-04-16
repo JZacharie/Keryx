@@ -9,7 +9,7 @@ pillow==10.4.0
 python-multipart==0.0.26
 aioboto3==13.4.0
 httpx==0.28.1
-pydantic==2.6.1
+pydantic==2.13.1
 huggingface-hub==0.36.2
 opencv-python-headless==4.13.0.92
 numpy==1.26.4
