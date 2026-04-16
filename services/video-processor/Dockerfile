@@ -12,22 +12,28 @@ ENV WHISPER_CACHE=/app/whisper_models
 
 WORKDIR /app
 
-# 1. Install system dependencies (rarely change)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 1. Fix Ubuntu mirrors and install system dependencies
+RUN sed -i 's/archive.ubuntu.com/mirrors.kernel.org/g' /etc/apt/sources.list && \
+    sed -i 's/security.ubuntu.com/mirrors.kernel.org/g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     ffmpeg \
     git \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Install uv for fast dependency management
 ENV UV_SYSTEM_PYTHON=1
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /root/.local/bin/uvx /bin/
 
 # 3. Install dependencies
+RUN uv pip install setuptools wheel pip
 RUN uv pip install torch transformers openai-whisper opencv-python-headless
 COPY requirements.txt .
-RUN uv pip install -r requirements.txt
+RUN uv pip install -r requirements.txt --no-build-isolation
 
 # 4. Final step: Copy only the application code
 COPY main.py .
