@@ -12,7 +12,7 @@ httpx==0.28.1
 pydantic==2.13.1
 huggingface-hub==0.36.2
 opencv-python-headless==4.13.0.92
-numpy==2.4.3
+numpy==2.2.6
 openai-whisper
 edge-tts
 moviepy==1.0.3

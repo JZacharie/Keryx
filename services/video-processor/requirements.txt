@@ -1,6 +1,6 @@
 openai-whisper
 moviepy<2.0.0
-numpy==2.4.3
+numpy==2.2.6
 transformers
 torch
 torchaudio
