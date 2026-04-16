@@ -7,4 +7,12 @@ target/
 *.jpg
 outputs/
 .sccache/
-node_modules/
+**/node_modules/
+**/__pycache__/
+**/.venv/
+**/.pytest_cache/
+**/.DS_Store
+.env
+.env.local
+dist/
+build/

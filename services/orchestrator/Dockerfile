@@ -44,7 +44,10 @@ RUN cargo install cargo-chef --version 0.1.77 --locked
 
 # --- Compute dependency recipe ---
 FROM chef AS planner
-COPY . .
+# Only copy files needed for dependency analysis
+COPY Cargo.toml Cargo.lock ./
+COPY services/keryx-core services/keryx-core
+COPY services/orchestrator services/orchestrator
 RUN cargo chef prepare --recipe-path recipe.json
 
 # --- Cook (cache deps), then build binary ---
@@ -52,8 +55,12 @@ FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo chef cook --release --recipe-path recipe.json
-COPY . .
+# Copy actual source code
+COPY Cargo.toml Cargo.lock ./
+COPY services/keryx-core services/keryx-core
+COPY services/orchestrator services/orchestrator
 RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/app/target \
     cargo build --release --bin keryx-orchestrator
 
 # --- Minimal runtime image ---

@@ -28,8 +28,11 @@ logger = logging.getLogger("keryx.extractor")
  
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        # Filter out noisy health check access logs
-        return "/health" not in record.getMessage()
+        # Downgrade noisy health check access logs to DEBUG
+        if "/health" in record.getMessage():
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
 
 # --- Configuration ---
 SERVICE_NAME = "keryx-extractor"

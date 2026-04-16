@@ -2,9 +2,10 @@ FROM python:3.11-slim
 WORKDIR /app
 # 1. Install dependencies first
 COPY requirements.txt .
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/* && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends ffmpeg
+RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 # 2. Copy application code

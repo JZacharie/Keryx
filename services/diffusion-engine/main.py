@@ -37,6 +37,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("keryx.diffusion")
 
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "/health" in record.getMessage():
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
+
 app = FastAPI(title="Keryx Diffusion Engine")
 
 # Configuration
@@ -652,4 +659,6 @@ async def inpaint_image(request: InpaintRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Filter out health check access logs from uvicorn
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

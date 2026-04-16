@@ -17,7 +17,8 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 
 # 3. Install dependencies
 COPY requirements.txt .
-RUN uv pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements.txt
 
 COPY main.py .
 

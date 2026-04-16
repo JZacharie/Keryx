@@ -26,6 +26,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("keryx.video_generator")
 
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "/health" in record.getMessage():
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
+
 app = FastAPI(title="Keryx Video Generator (SVD)", version="1.0.0")
 
 # Configuration
@@ -177,4 +184,6 @@ async def animate_image(req: AnimationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Filter out health check access logs from uvicorn
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

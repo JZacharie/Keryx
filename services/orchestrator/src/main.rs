@@ -187,7 +187,17 @@ async fn run() -> anyhow::Result<()> {
                     axum::http::header::CONTENT_TYPE,
                 ])
         )
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<axum::body::Body>| {
+                    let path = request.uri().path();
+                    if path == "/health" {
+                        tracing::debug_span!("http_request", method = %request.method(), uri = %request.uri())
+                    } else {
+                        tracing::info_span!("http_request", method = %request.method(), uri = %request.uri())
+                    }
+                })
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;

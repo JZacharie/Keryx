@@ -1,6 +1,7 @@
 import io
 import os
 import asyncio
+import logging
 from functools import partial
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -10,6 +11,21 @@ from pptx.enum.text import PP_ALIGN
 import aioboto3
 import httpx
 from urllib.parse import urlparse
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("keryx.pptx_builder")
+
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "/health" in record.getMessage():
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
 
 app = FastAPI(title="Keryx PPTX Builder")
 
@@ -94,3 +110,8 @@ async def build_pptx(request: PptxRequest):
         )
 
     return {"status": "success", "url": f"{S3_ENDPOINT}/{S3_BUCKET}/{target_key}"}
+if __name__ == "__main__":
+    import uvicorn
+    # Filter out health check access logs from uvicorn
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

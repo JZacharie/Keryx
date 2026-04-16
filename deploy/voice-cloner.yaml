@@ -44,6 +44,13 @@ spec:
           value: "all"
         - name: NVIDIA_DRIVER_CAPABILITIES
           value: "compute,utility"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+            memory: 16Gi
+          requests:
+            cpu: 1000m
+            memory: 8Gi
         volumeMounts:
         - name: tts-cache
           mountPath: /home/keryx/.local/share/tts

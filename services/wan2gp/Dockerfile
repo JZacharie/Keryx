@@ -29,11 +29,13 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 
 # 3. Install heavy AI dependencies first
 RUN uv pip install setuptools wheel pip
-RUN uv pip install torch transformers diffusers accelerate
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install torch transformers diffusers accelerate
 
 # 4. Final step: Copy only the application code
 COPY requirements.txt .
-RUN uv pip install -r requirements.txt --no-build-isolation
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements.txt --no-build-isolation
 
 # 4. Final step: Copy only the application code
 COPY main.py .

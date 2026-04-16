@@ -23,11 +23,18 @@ from pydantic import BaseModel
 from urllib.parse import urlparse
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.video_composer")
+
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "/health" in record.getMessage():
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
 
 app = FastAPI(title="Keryx Video Composer", version="1.0.0")
 
@@ -371,4 +378,6 @@ async def detect_slides(req: DetectSlidesRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Filter out health check access logs from uvicorn
+    logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

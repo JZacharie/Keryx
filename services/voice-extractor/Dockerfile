@@ -22,7 +22,8 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 # 3. Install dependencies
 RUN uv pip install setuptools wheel pip
 COPY requirements.txt .
-RUN uv pip install -r requirements.txt --no-build-isolation
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements.txt --no-build-isolation
 
 # Create cache directory and ensure it's writable
 RUN mkdir -p /app/.cache/whisper && chmod -R 777 /app/.cache
