@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1
-FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime
 ENV DEBIAN_FRONTEND=noninteractive
 
 
@@ -14,25 +13,21 @@ ENV WHISPER_CACHE=/app/whisper_models
 WORKDIR /app
 
 # 1. Install system dependencies (rarely change)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
     libglib2.0-0 \
     ffmpeg \
     git \
-    libopencv-dev \
-    python3-opencv
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Upgrade pip and install heavy AI dependencies first (rarely change)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip && \
-    pip install torch transformers openai-whisper opencv-python
+# 2. Install uv for fast dependency management
+ENV UV_SYSTEM_PYTHON=1
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# 3. Handle remaining Python dependencies
+# 3. Install dependencies
+RUN uv pip install torch transformers openai-whisper opencv-python-headless
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+RUN uv pip install -r requirements.txt
 
 # 4. Final step: Copy only the application code
 COPY main.py .

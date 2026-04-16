@@ -11,5 +11,5 @@ fastapi
 uvicorn
 requests
 python-multipart
-opencv-python
+opencv-python-headless==4.13.0.92
 ffmpeg-python

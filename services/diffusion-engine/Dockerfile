@@ -14,30 +14,25 @@ ENV XDG_CACHE_HOME=/app/cache
 WORKDIR /app
 
 # 1. Install system dependencies (rarely change)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
     libglib2.0-0 \
     ffmpeg \
-    git
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Upgrade pip and install heavy AI dependencies first (these change rarely)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip setuptools wheel && \
-    pip install \
-    torch==2.2.1 \
-    diffusers==0.26.3 \
-    transformers==4.38.2 \
-    accelerate==0.27.2 \
-    opencv-python-headless==4.9.0.80
+# 2. Upgrade pip and install uv for fast dependency management
+ENV UV_SYSTEM_PYTHON=1
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# 3. Handle remaining Python dependencies
+# 3. Install heavy dependencies first to maximize cache hits
+RUN uv pip install torch transformers diffusers accelerate
+
+# 4. Install remaining app dependencies
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+RUN uv pip install -r requirements.txt
 
-# 4. Final step: Copy only the application code
+# 5. Final step: Copy only the application code
 COPY main.py .
 
 # Create cache directories and set permissions

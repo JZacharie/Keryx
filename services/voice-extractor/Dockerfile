@@ -6,9 +6,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# 2. Install uv for fast dependency management
+ENV UV_SYSTEM_PYTHON=1
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# 3. Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip "setuptools<70" wheel
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install -r requirements.txt
 
 # Create cache directory and ensure it's writable
 RUN mkdir -p /app/.cache/whisper && chmod -R 777 /app/.cache
