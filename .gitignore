@@ -44,3 +44,4 @@ Thumbs.db
 .cache/
 outputs/
 venv/
+test_venv/
