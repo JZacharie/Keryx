@@ -40,8 +40,8 @@ app = FastAPI(title="Keryx Dewatermark", version="1.0.0")
 
 SERVICE_NAME = "keryx-dewatermark"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
-S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID")
-S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 USE_SDXL = os.getenv("USE_SDXL", "false").lower() == "true"
 

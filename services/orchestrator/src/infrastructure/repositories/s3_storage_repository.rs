@@ -12,8 +12,21 @@ pub struct S3StorageRepository {
 
 impl S3StorageRepository {
     pub async fn new(region: &str, bucket: &str, endpoint: Option<&str>) -> Self {
+        let access_key = std::env::var("S3_ACCESS_KEY_ID")
+            .or_else(|_| std::env::var("AWS_ACCESS_KEY_ID"))
+            .ok();
+        let secret_key = std::env::var("S3_SECRET_ACCESS_KEY")
+            .or_else(|_| std::env::var("AWS_SECRET_ACCESS_KEY"))
+            .ok();
+
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.to_string()));
+
+        if let (Some(ak), Some(sk)) = (access_key, secret_key) {
+            config_loader = config_loader.credentials_provider(
+                aws_sdk_s3::config::Credentials::new(ak, sk, None, None, "manual")
+            );
+        }
 
         let ep_str = endpoint.unwrap_or("https://s3.amazonaws.com").to_string();
 

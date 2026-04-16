@@ -25,5 +25,5 @@ nodeSelector:
 env:
   S3_ENDPOINT: "https://minio-170-api.zacharie.org"
   S3_BUCKET: "keryx"
-  AWS_ACCESS_KEY_ID: "REDACTED"
-  AWS_SECRET_ACCESS_KEY: "REDACTED"
+  S3_ACCESS_KEY_ID: "REDACTED"
+  S3_SECRET_ACCESS_KEY: "REDACTED"

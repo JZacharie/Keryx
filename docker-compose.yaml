@@ -12,8 +12,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
       - EXTRACTOR_URL=http://extractor:8010
       - DEWATERMARK_URL=http://dewatermark:8011
       - VOICE_EXTRACTOR_URL=http://voice-extractor:8012
@@ -34,8 +34,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     networks:
       - keryx-net
 
@@ -53,8 +53,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     networks:
       - keryx-net
 
@@ -62,14 +62,24 @@ services:
     build:
       context: ./services/voice-extractor
     container_name: keryx-voice-extractor
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
     volumes:
       - keryx-cache:/app/.cache/whisper
+      - .:/data
+    ports:
+      - "8000:8000"
     networks:
       - keryx-net
 
@@ -80,8 +90,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     networks:
       - keryx-net
 
@@ -99,8 +109,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     networks:
       - keryx-net
 
@@ -118,8 +128,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     volumes:
       - coqui-models:/root/.local/share/tts
     networks:
@@ -132,8 +142,8 @@ services:
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
-      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-keryx}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-keryx_secret}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
     networks:
       - keryx-net
 

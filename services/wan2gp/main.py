@@ -31,8 +31,8 @@ app = FastAPI(title="Keryx Video Generator (SVD)", version="1.0.0")
 # Configuration
 SERVICE_NAME = "keryx-video-generator"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
-S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID")
-S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 MODEL_ID = os.getenv("MODEL_ID", "stabilityai/stable-video-diffusion-img2vid-xt-1-1")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
