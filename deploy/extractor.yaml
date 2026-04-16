@@ -17,6 +17,9 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-login
+      nodeSelector:
+        kubernetes.io/hostname: vm169
+        kubernetes.io/arch: amd64
       containers:
         - name: extractor
           image: ghcr.io/jzacharie/keryx-extractor:latest

@@ -32,6 +32,7 @@ securityContext:
 
 nodeSelector:
   kubernetes.io/hostname: vm169
+  kubernetes.io/arch: amd64
 
 tolerations:
   - key: "special-node"

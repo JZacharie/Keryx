@@ -18,6 +18,10 @@ resources:
     memory: 1Gi
     cpu: 500m
 
+nodeSelector:
+  kubernetes.io/hostname: vm169
+  kubernetes.io/arch: amd64
+
 env:
   S3_ENDPOINT: "https://minio-170-api.zacharie.org"
   S3_BUCKET: "keryx"

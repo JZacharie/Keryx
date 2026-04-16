@@ -12,6 +12,10 @@ spec:
       labels:
         app: keryx-pptx-builder
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: pptx-builder
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
