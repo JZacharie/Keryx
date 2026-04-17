@@ -1,4 +1,4 @@
-fastapi==0.135.3
+fastapi==0.136.0
 uvicorn[standard]==0.30.6
 pydantic==2.13.1
 aioboto3==13.4.0
