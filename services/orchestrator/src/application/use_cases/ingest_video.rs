@@ -131,6 +131,9 @@ impl IngestVideoUseCase {
         let slide_res = self.video_composer.detect_slides(&job_id.to_string(), &ext_res.video_url).await?;
         self.log(job_id, &format!("Phase 3 : {} slides détectées. Nettoyage en cours...", slide_res.slides.len())).await;
 
+        // Scale down video-composer to free up resources (VRAM/RAM) before dewatermark
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
+
         self.scaling_repo.scale_up("keryx", "keryx-dewatermark").await?;
 
         let mut slides_input = Vec::new();
