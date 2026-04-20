@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keryx-video-composer
+  namespace: keryx
+  labels:
+    app.kubernetes.io/component: video-composer
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: video-composer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: video-composer
+    spec:
+      imagePullSecrets:
+        - name: ghcr-login
+      nodeSelector:
+        kubernetes.io/hostname: vm169
+        kubernetes.io/arch: amd64
+      containers:
+        - name: video-composer
+          image: ghcr.io/jzacharie/keryx-video-composer:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: S3_ENDPOINT
+              value: "https://minio-170-api.zacharie.org"
+            - name: S3_BUCKET
+              value: "keryx"
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keryx-video-composer
+  namespace: keryx
+spec:
+  selector:
+    app.kubernetes.io/component: video-composer
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
