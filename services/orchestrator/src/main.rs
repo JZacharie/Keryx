@@ -111,16 +111,23 @@ async fn run() -> anyhow::Result<()> {
     let api_key = std::env::var("API_KEY").unwrap_or_else(|_| "changeme".to_string());
 
     // Initialize core repositories
-    let job_repo = Arc::new(RedisJobRepository::new(&redis_url)?);
+    println!(">>> KERYX ORCHESTRATOR: Connecting to Redis at {}...", redis_url);
+    if !redis_url.starts_with("redis://") && !redis_url.starts_with("rediss://") {
+        return Err(anyhow::anyhow!("Invalid REDIS_URL: must start with redis:// or rediss://. Got: {}", redis_url));
+    }
+    let job_repo = Arc::new(RedisJobRepository::new(&redis_url).context("Failed to initialize Redis client")?);
+    
+    println!(">>> KERYX ORCHESTRATOR: Initializing S3 storage (Bucket: {}, Region: {})...", s3_bucket, s3_region);
     let storage_repo = Arc::new(S3StorageRepository::new(&s3_region, &s3_bucket, s3_endpoint.as_deref()).await);
 
     let scaling_mode = std::env::var("SCALING_MODE").unwrap_or_else(|_| "kube".to_string());
+    println!(">>> KERYX ORCHESTRATOR: Using scaling mode: {}...", scaling_mode);
     let scaling_repo: Arc<dyn keryx_core::domain::ports::scaling_repository::ScalingRepository> = if scaling_mode == "compose" {
         tracing::info!("Using Docker Compose scaling mode");
-        Arc::new(ComposeScalingRepository::new()?)
+        Arc::new(ComposeScalingRepository::new().context("Failed to init Compose scaling repo")?)
     } else {
         tracing::info!("Using Kubernetes scaling mode");
-        Arc::new(KubeScalingRepository::new().await?)
+        Arc::new(KubeScalingRepository::new().await.context("Failed to init Kube scaling repo")?)
     };
 
     let notification_repo = Arc::new(SlackNotificationRepository::new(slack_webhook));

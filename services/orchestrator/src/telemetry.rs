@@ -60,9 +60,10 @@ fn build_resource(service_name: &str) -> Resource {
 /// Construit les metadata gRPC (authorization + organisation OpenObserve).
 fn build_grpc_metadata(auth_token: &str) -> MetadataMap {
     let mut map = MetadataMap::with_capacity(3);
+    let token = auth_token.trim();
     map.insert(
         "authorization",
-        auth_token
+        token
             .parse()
             .expect("[otel] invalid OTEL_AUTH_TOKEN format"),
     );
