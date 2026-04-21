@@ -25,13 +25,13 @@ spec:
           image: ghcr.io/jzacharie/keryx-video-composer:latest
           imagePullPolicy: Always
           ports:
-            - name: http
+            - name: http-composer
               containerPort: 8000
               protocol: TCP
           readinessProbe:
             httpGet:
               path: /health
-              port: http
+              port: http-composer
             initialDelaySeconds: 10
             periodSeconds: 5
           env:
@@ -60,5 +60,5 @@ spec:
   ports:
     - name: http
       port: 8000
-      targetPort: 8000
+      targetPort: http-composer
       protocol: TCP
