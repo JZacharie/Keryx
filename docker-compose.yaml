@@ -22,11 +22,15 @@ services:
       - VOICE_CLONER_URL=http://voice-cloner:9880
       - PPTX_URL=http://pptx-builder:8002
       - SCALING_MODE=compose
+      - OTEL_ENDPOINT=http://o2-openobserve-router.openobserve.svc:5080
+      - OTEL_AUTH_TOKEN=Basic am9zZXBoQHphY2hhcmllLm9yZzpTdXBlcm1hbi02OTIzMA==
       - API_KEY=${API_KEY:-changeme}
     depends_on:
       - redis
     networks:
       - keryx-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   extractor:
     build:
