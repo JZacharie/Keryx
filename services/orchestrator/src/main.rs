@@ -51,6 +51,9 @@ async fn main() {
     let otel_service_name = std::env::var("OTEL_SERVICE_NAME")
         .unwrap_or_else(|_| "keryx-orchestrator".to_string());
 
+    println!(">>> KERYX ORCHESTRATOR: Initializing telemetry...");
+    let _ = std::io::stdout().flush();
+
     // _otel_guard doit vivre jusqu'à la fin du main (flush au Drop)
     let otel_guard = telemetry::init_telemetry(
         &otel_service_name,
@@ -60,22 +63,30 @@ async fn main() {
 
     if otel_guard.initialized {
         if let Some(ep) = otel_endpoint {
+            println!(">>> KERYX ORCHESTRATOR: OTel initialized (service={}, endpoint={})", otel_service_name, ep);
             tracing::info!("OTel initialized: service={} endpoint={}", otel_service_name, ep);
         }
     } else if otel_endpoint.is_some() {
-        println!(">>> KERYX ORCHESTRATOR: OTel disabled (endpoint {} is unreachable)", otel_endpoint.unwrap());
+        println!(">>> KERYX ORCHESTRATOR: OTel disabled (endpoint {} is unreachable or token is missing)", otel_endpoint.as_deref().unwrap_or("unknown"));
     } else {
         println!(">>> KERYX ORCHESTRATOR: OTel disabled (OTEL_ENDPOINT not set)");
     }
-
-    println!(">>> KERYX ORCHESTRATOR: Initializing runtime...");
     let _ = std::io::stdout().flush();
 
-    if let Err(e) = run().await {
-        eprintln!(">>> FATAL ERROR IN RUN: {:?}", e);
-        tracing::error!("FATAL ERROR: {:?}", e);
-        let _ = std::io::stderr().flush();
-        std::process::exit(1);
+    println!(">>> KERYX ORCHESTRATOR: Initializing components and starting server...");
+    let _ = std::io::stdout().flush();
+
+    match run().await {
+        Ok(_) => {
+            println!(">>> KERYX ORCHESTRATOR: Process finished successfully (unexpected for a service).");
+            let _ = std::io::stdout().flush();
+        }
+        Err(e) => {
+            eprintln!(">>> KERYX ORCHESTRATOR: FATAL ERROR IN RUN: {:?}", e);
+            tracing::error!("FATAL ERROR: {:?}", e);
+            let _ = std::io::stderr().flush();
+            std::process::exit(1);
+        }
     }
 }
 

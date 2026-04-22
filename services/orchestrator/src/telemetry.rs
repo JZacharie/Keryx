@@ -61,12 +61,20 @@ fn build_resource(service_name: &str) -> Resource {
 fn build_grpc_metadata(auth_token: &str) -> MetadataMap {
     let mut map = MetadataMap::with_capacity(3);
     let token = auth_token.trim();
-    map.insert(
-        "authorization",
-        token
-            .parse()
-            .expect("[otel] invalid OTEL_AUTH_TOKEN format"),
-    );
+    
+    if token.is_empty() {
+        eprintln!("[otel] OTEL_AUTH_TOKEN is empty after trimming. OTel might fail.");
+    } else {
+        match token.parse() {
+            Ok(val) => {
+                map.insert("authorization", val);
+            }
+            Err(e) => {
+                eprintln!("[otel] invalid OTEL_AUTH_TOKEN format: {}. OTel might fail.", e);
+            }
+        }
+    }
+    
     map.insert("organization", "default".parse().unwrap());
     map.insert("stream-name", "default".parse().unwrap());
     map
