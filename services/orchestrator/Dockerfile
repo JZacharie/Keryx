@@ -60,7 +60,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY services/keryx-core services/keryx-core
 COPY services/orchestrator services/orchestrator
 RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/app/target \
     cargo build --release --bin keryx-orchestrator
 
 # --- Minimal runtime image ---

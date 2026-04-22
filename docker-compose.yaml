@@ -21,6 +21,7 @@ services:
       - VIDEO_GENERATOR_URL=http://wan2gp:8014
       - VOICE_CLONER_URL=http://voice-cloner:9880
       - PPTX_URL=http://pptx-builder:8002
+      - SCALING_MODE=compose
       - API_KEY=${API_KEY:-changeme}
     depends_on:
       - redis
@@ -43,13 +44,6 @@ services:
     build:
       context: ./services/dewatermark
     container_name: keryx-dewatermark
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
@@ -62,13 +56,6 @@ services:
     build:
       context: ./services/voice-extractor
     container_name: keryx-voice-extractor
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
@@ -101,13 +88,6 @@ services:
     build:
       context: ./services/wan2gp
     container_name: keryx-wan2gp
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
@@ -120,13 +100,6 @@ services:
     build:
       context: ./services/voice-cloner
     container_name: keryx-voice-cloner
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
