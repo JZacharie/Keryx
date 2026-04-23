@@ -18,5 +18,5 @@ ENV S3_BUCKET=keryx \
     S3_ENDPOINT=https://minio-170-api.zacharie.org \
     PYTHONUNBUFFERED=1
 
-EXPOSE 8013
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8013"]
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
