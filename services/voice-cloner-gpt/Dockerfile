@@ -16,17 +16,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     build-essential
 
 # 2. GPT-SoVITS setup
-# Note: Cloning here is convenient but less deterministic for caching.
-# We keep it as per the current setup but ensure it's in its own layer.
 RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
 
-# 3. Install requirements with cache
-RUN --mount=type=cache,target=/root/.cache/pip \
+# 3. Install uv and requirements
+ENV UV_SYSTEM_PYTHON=1
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /root/.local/bin/uvx /bin/
+
+RUN --mount=type=cache,target=/root/.cache/uv \
     sed -i '/transformers/d; /peft/d' requirements.txt && \
     pip uninstall -y torchaudio && \
-    pip install torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
-    pip install "transformers>=4.45.0,<5.0" "peft>=0.12.0" "huggingface_hub<0.24" && \
-    pip install -r requirements.txt \
+    uv pip install torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
+    uv pip install "transformers>=4.45.0,<5.0" "peft>=0.12.0" "huggingface_hub<0.24"
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r requirements.txt \
     fastapi \
     uvicorn \
     requests \
@@ -35,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     f5-tts
 
 # 4. Download pretrained models
-RUN pip install "huggingface_hub>=0.24" && \
+RUN uv pip install "huggingface_hub>=0.24" && \
     huggingface-cli download lj1995/GPT-SoVITS \
         chinese-roberta-wwm-ext-large/config.json \
         chinese-roberta-wwm-ext-large/tokenizer.json \
@@ -47,7 +51,7 @@ RUN pip install "huggingface_hub>=0.24" && \
         gsv-v2final-pretrained/s2D2333k.pth \
         gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt \
         --local-dir /app/GPT_SoVITS/pretrained_models && \
-    pip install "huggingface_hub<0.24"
+    uv pip install "huggingface_hub<0.24"
 
 # 5. Final step: Copy my API wrapper
 COPY gpt_api.py .
