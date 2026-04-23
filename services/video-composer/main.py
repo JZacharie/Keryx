@@ -22,12 +22,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from urllib.parse import urlparse
 
+SERVICE_NAME = "keryx-video-composer"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.video_composer")
+logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}")
 
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -37,8 +40,6 @@ class HealthCheckFilter(logging.Filter):
         return True
 
 app = FastAPI(title="Keryx Video Composer", version="1.0.0")
-
-SERVICE_NAME = "keryx-video-composer"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -89,13 +90,21 @@ async def upload_file(local_path: str, key: str, content_type: str = "video/mp4"
 
 # ── ffmpeg helpers ────────────────────────────────────────────────────────────
 
-def run_ffmpeg(*args, check=True):
-    """Lance ffmpeg avec stderr capturé, raise HTTPException si erreur."""
+async def run_ffmpeg(*args, check=True):
+    """Lance ffmpeg de manière asynchrone, raise HTTPException si erreur."""
     cmd = ["ffmpeg", "-y"] + list(args)
-    result = subprocess.run(cmd, capture_output=True)
-    if check and result.returncode != 0:
-        raise HTTPException(500, f"ffmpeg error: {result.stderr.decode()[-1000:]}")
-    return result
+    logger.debug(f"Running: {' '.join(cmd)}")
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if check and process.returncode != 0:
+        error_msg = stderr.decode()[-1000:]
+        logger.error(f"ffmpeg error: {error_msg}")
+        raise HTTPException(500, f"ffmpeg error: {error_msg}")
+    return process.returncode, stdout, stderr
 
 
 # ── API Models ────────────────────────────────────────────────────────────────
@@ -179,7 +188,7 @@ async def compose(req: ComposeRequest):
         logger.info(f"[{request_id}] Building video segments...")
         for i, (frame_path, slide) in enumerate(zip(local_frames, req.slides)):
             seg_path = os.path.join(segments_dir, f"seg_{i:04d}.mp4")
-            run_ffmpeg(
+            await run_ffmpeg(
                 "-loop", "1",
                 "-i", frame_path,
                 "-t", str(slide.duration),
@@ -196,7 +205,7 @@ async def compose(req: ComposeRequest):
                 f.write(f"file '{sp}'\n")
 
         silent_video = os.path.join(tmp_dir, "silent.mp4")
-        run_ffmpeg(
+        await run_ffmpeg(
             "-f", "concat", "-safe", "0",
             "-i", concat_list_path,
             "-c", "copy",
@@ -210,7 +219,7 @@ async def compose(req: ComposeRequest):
             logger.info(f"[{request_id}] Downloading audio track...")
             await download_file(req.audio_url, audio_path)
 
-            run_ffmpeg(
+            await run_ffmpeg(
                 "-i", silent_video,
                 "-i", audio_path,
                 "-c:v", "copy",
@@ -234,7 +243,7 @@ async def compose(req: ComposeRequest):
                 f.write(f"file '{intro_path}'\n")
                 f.write(f"file '{final_video}'\n")
 
-            run_ffmpeg(
+            await run_ffmpeg(
                 "-f", "concat", "-safe", "0",
                 "-i", intro_concat,
                 "-c", "copy",
@@ -285,7 +294,7 @@ async def concat_audio(req: ConcatAudioRequest):
                 f.write(f"file '{sp}'\n")
 
         merged_wav = os.path.join(tmp_dir, "merged.wav")
-        run_ffmpeg(
+        await run_ffmpeg(
             "-f", "concat", "-safe", "0",
             "-i", concat_list,
             "-c", "copy",
@@ -328,17 +337,17 @@ async def detect_slides(req: DetectSlidesRequest):
         logger.info(f"[{request_id}] Running scene detection...")
         # -vf "select=..." sélectionne uniquement les frames de changement de scène
         vf_filter = f"select='gt(scene,{req.scene_threshold})',showinfo"
-        proc = subprocess.run(
-            ["ffmpeg", "-y", "-i", video_path,
-             "-vf", vf_filter,
-             "-vsync", "vfr", "-q:v", "2",
-             os.path.join(frames_dir, "frame_%04d.jpg")],
-            capture_output=True, text=True
+        rc, stdout, stderr = await run_ffmpeg(
+            "-i", video_path,
+            "-vf", vf_filter,
+            "-vsync", "vfr", "-q:v", "2",
+            os.path.join(frames_dir, "frame_%04d.jpg"),
+            check=False
         )
 
         # Parse timestamps depuis stderr (ffmpeg showinfo)
         timestamps = []
-        for line in proc.stderr.splitlines():
+        for line in stderr.decode().splitlines():
             if "showinfo" in line and "pts_time:" in line:
                 try:
                     idx = line.find("pts_time:")
@@ -380,4 +389,4 @@ if __name__ == "__main__":
     import uvicorn
     # Filter out health check access logs from uvicorn
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8013, log_level="info")
