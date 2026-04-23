@@ -13,7 +13,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     libsndfile1 \
     cmake \
-    build-essential
+    build-essential \
+    curl \
+    ca-certificates
 
 # 2. GPT-SoVITS setup
 RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
