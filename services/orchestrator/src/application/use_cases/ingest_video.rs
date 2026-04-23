@@ -160,12 +160,18 @@ impl IngestVideoUseCase {
         }
 
         // Phase 4 : Traduction et Génération Audio (FR + Clonage)
-        self.log(job_id, "Phase 4 : Traduction et génération audio haute qualité...").await;
+        self.log(job_id, "Phase 4 : Traduction via voice-extractor...").await;
         self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
-        self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
         self.job_repo.update_status(job_id, JobStatus::Translating).await?;
         
         let trans_lang_res = self.voice_extractor.translate(trans_res.segments.clone(), "fr", &job_id.to_string()).await?;
+        
+        // Arrêt de l'extractor avant de lancer le cloner pour libérer de la VRAM
+        self.log(job_id, "Traduction terminée. Libération de voice-extractor avant clonage...").await;
+        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+
+        self.log(job_id, "Démarrage de voice-cloner pour la génération audio haute qualité...").await;
+        self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
         
         let mut fr_audio_urls = Vec::new();
         for (i, seg) in trans_lang_res.segments.iter().enumerate() {
@@ -174,8 +180,7 @@ impl IngestVideoUseCase {
             let clone_res = self.voice_cloner.perform_cloning(&text, "fr", &ext_res.audio_url, &job_id.to_string()).await?;
             fr_audio_urls.push(clone_res.url);
         }
-        self.log(job_id, "Clonage vocal terminé. Libération des workers voice-extractor et voice-cloner...").await;
-        let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+        self.log(job_id, "Clonage vocal terminé. Libération du worker voice-cloner...").await;
         let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
 
         // Concaténation audio finale
