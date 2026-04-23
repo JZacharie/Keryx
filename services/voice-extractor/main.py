@@ -34,7 +34,40 @@ class HealthCheckFilter(logging.Filter):
             record.levelname = "DEBUG"
         return True
 
-app = FastAPI(title="Keryx Voice Extractor", version="1.0.0")
+from contextlib import asynccontextmanager
+
+# ── Whisper — chargement ───────────────────────────────────────────────────
+_whisper_model = None
+_whisper_lock = asyncio.Lock()
+
+
+async def get_whisper():
+    global _whisper_model
+    if _whisper_model is None:
+        async with _whisper_lock:
+            if _whisper_model is None:
+                import torch
+                import whisper
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                logger.info(f"Loading Whisper model '{WHISPER_MODEL}' on {device}...")
+                _whisper_model = await asyncio.to_thread(
+                    whisper.load_model, WHISPER_MODEL, device=device, download_root=WHISPER_CACHE_DIR
+                )
+                logger.info("Whisper model loaded.")
+    return _whisper_model
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load model at startup
+    try:
+        await get_whisper()
+    except Exception as e:
+        logger.error(f"Failed to load Whisper model at startup: {e}")
+    yield
+
+
+app = FastAPI(title="Keryx Voice Extractor", version="1.0.0", lifespan=lifespan)
 
 SERVICE_NAME = "keryx-voice-extractor"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
@@ -47,25 +80,6 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 # TRANSLATOR_BACKEND: "ollama" (default — meilleure qualité) ou "google" (fallback gratuit)
 TRANSLATOR_BACKEND = os.getenv("TRANSLATOR_BACKEND", "ollama")
 WHISPER_CACHE_DIR = os.getenv("WHISPER_CACHE_DIR")
-
-# ── Whisper — chargement lazy ────────────────────────────────────────────────
-_whisper_model = None
-_whisper_lock = asyncio.Lock()
-
-
-async def get_whisper():
-    global _whisper_model
-    async with _whisper_lock:
-        if _whisper_model is None:
-            import torch
-            import whisper
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Loading Whisper model '{WHISPER_MODEL}' on {device}...")
-            _whisper_model = await asyncio.to_thread(
-                whisper.load_model, WHISPER_MODEL, device=device, download_root=WHISPER_CACHE_DIR
-            )
-            logger.info("Whisper model loaded.")
-    return _whisper_model
 
 
 # ── S3 helpers ───────────────────────────────────────────────────────────────
