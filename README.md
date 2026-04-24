@@ -92,7 +92,7 @@ graph TD
     F -->|keryx-voice-cloner| G[Cloned Audio Segments]
     G -->|keryx-video-composer| H[Final Audio]
     H & E -->|keryx-video-composer| I[Final Localized Video]
-    E -->|keryx-wan2gp| J[SVD Bonus Intro]
+    E -->|keryx-video-generator| J[SVD Bonus Intro]
 ```
 
 ### Worker Execution Sequence:
@@ -111,7 +111,7 @@ graph TD
     *   *Dependencies*: NVIDIA GPU (High VRAM), S3.
 7.  **keryx-video-composer** (Phase 4C/5): Concatenates audio segments and performs final video assembly (synced overlay).
     *   *Dependencies*: S3.
-8.  **keryx-wan2gp** (Phase 6): Generates a cinematic AI intro animation (SVD) for the first slide.
+8.  **keryx-video-generator** (Phase 6): Generates a cinematic AI intro animation (SVD) for the first slide.
     *   *Dependencies*: NVIDIA GPU (High VRAM).
 
 ## 🚦 Status: 🟢 Production Ready (Phase 1 & 2)

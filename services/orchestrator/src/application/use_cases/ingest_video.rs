@@ -29,6 +29,7 @@ pub struct IngestVideoUseCase {
     voice_cloner: Arc<VoiceClonerClient>,
     video_composer: Arc<VideoComposerClient>,
     video_generator: Arc<VideoGeneratorClient>,
+    gpu_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 impl IngestVideoUseCase {
@@ -43,6 +44,7 @@ impl IngestVideoUseCase {
         voice_cloner: Arc<VoiceClonerClient>,
         video_composer: Arc<VideoComposerClient>,
         video_generator: Arc<VideoGeneratorClient>,
+        gpu_semaphore: Arc<tokio::sync::Semaphore>,
     ) -> Self {
         Self { 
             job_repo, 
@@ -55,6 +57,7 @@ impl IngestVideoUseCase {
             voice_cloner,
             video_composer,
             video_generator,
+            gpu_semaphore,
         }
     }
 
@@ -192,9 +195,7 @@ impl IngestVideoUseCase {
         };
 
         if tracking.cleaned_slides.len() < slide_res.slides.len() {
-            self.log(job_id, "Phase 3 (Cleaning) : Nettoyage watermark en cours...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-dewatermark").await?;
-            
+            let _perm = self.gpu_semaphore.acquire().await?;
             for slide in slide_res.slides.iter().skip(tracking.cleaned_slides.len()) {
                 self.log(job_id, &format!("Nettoyage slide {}...", slide.index)).await;
                 let clean_res = self.dewatermark.clean_image(&slide.image_url, &job_id.to_string(), false).await?;
@@ -243,9 +244,7 @@ impl IngestVideoUseCase {
         };
 
         if tracking.cloned_audio_urls.len() < trans_segments.len() {
-            self.log(job_id, "Phase 4 (Clonage) : Génération audio haute qualité...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
-            
+            let _perm = self.gpu_semaphore.acquire().await?;
             for i in tracking.cloned_audio_urls.len()..trans_segments.len() {
                 let seg = &trans_segments[i];
                 let text = seg.translated.clone().unwrap_or_else(|| seg.text.clone());
@@ -275,12 +274,8 @@ impl IngestVideoUseCase {
         // Phase 5 : Composition Vidéo
         let final_video_url = if let Some(existing) = tracking.final_video_url.clone() {
             self.log(job_id, "Phase 5 : Déjà réalisée. Chargement depuis le cache S3...").await;
-            existing
         } else {
-            self.log(job_id, "Phase 5 : Montage final de la vidéo...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
-            self.job_repo.update_status(job_id, JobStatus::Composing).await?;
-            
+            let _perm = self.gpu_semaphore.acquire().await?;
             let composer_slides: Vec<ComposerSlideInput> = slides_input.iter().map(|s| {
                 ComposerSlideInput {
                     image_url: s.image_url.clone(),
@@ -303,6 +298,7 @@ impl IngestVideoUseCase {
 
         // Phase 6 : Animations Bonus (SVD) sur la première slide
         if let Some(first_slide) = slides_input.first() {
+            let _perm = self.gpu_semaphore.acquire().await?;
             self.log(job_id, "Phase 6 : Génération d'une animation bonus (SVD) pour l'intro...").await;
             self.scaling_repo.scale_up("keryx", "keryx-video-generator").await?;
             let _ = self.video_generator.animate(&job_id.to_string(), &first_slide.image_url).await;

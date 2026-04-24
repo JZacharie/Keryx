@@ -16,4 +16,5 @@ pub struct AppState {
     pub voice_cloner: Arc<VoiceClonerClient>,
     pub video_composer: Arc<VideoComposerClient>,
     pub video_generator: Arc<VideoGeneratorClient>,
+    pub gpu_semaphore: Arc<tokio::sync::Semaphore>,
 }

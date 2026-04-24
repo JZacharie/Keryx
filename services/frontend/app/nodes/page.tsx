@@ -79,9 +79,9 @@ const NODES: Omit<NodeInfo, "status" | "latency">[] = [
     gpu: true,
   },
   {
-    name: "WAN2GP",
+    name: "Video Generator",
     url: `${API_BASE}/health`,
-    description: "Video generation (Wan2GP)",
+    description: "SVD AI video generation engine",
     icon: Film,
     gpu: true,
   },

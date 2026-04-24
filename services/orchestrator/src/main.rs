@@ -167,15 +167,28 @@ async fn run() -> anyhow::Result<()> {
     ));
 
     // Initialize state
-    let state = AppState {
-        ingest_video_use_case,
-        extractor,
-        dewatermark,
-        voice_extractor,
-        voice_cloner,
-        video_composer,
         video_generator,
+        gpu_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
     };
+
+    // Recover pending jobs
+    let recovery_use_case = state.ingest_video_use_case.clone();
+    tokio::spawn(async move {
+        println!(">>> KERYX ORCHESTRATOR: Starting job recovery...");
+        if let Ok(jobs) = recovery_use_case.get_job_repo().list(100).await {
+            for job in jobs {
+                if job.status != keryx_core::domain::entities::job::JobStatus::Completed 
+                   && job.status != keryx_core::domain::entities::job::JobStatus::Failed {
+                    println!(">>> KERYX ORCHESTRATOR: Recovering job {} (status: {:?})", job.id, job.status);
+                    let uc = recovery_use_case.clone();
+                    let job_id = job.id;
+                    tokio::spawn(async move {
+                        let _ = uc.execute(job_id).await;
+                    });
+                }
+            }
+        }
+    });
 
     let auth_state = AuthState { api_key };
 

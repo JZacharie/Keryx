@@ -92,7 +92,7 @@ services:
 
   video-generator:
     build:
-      context: ./services/wan2gp
+      context: ./services/video-generator
     container_name: keryx-video-generator
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
