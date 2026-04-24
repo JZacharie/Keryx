@@ -193,8 +193,7 @@ async fn run() -> anyhow::Result<()> {
         println!(">>> KERYX ORCHESTRATOR: Starting job recovery...");
         if let Ok(jobs) = recovery_use_case.get_job_repo().list(100).await {
             for job in jobs {
-                if job.status != keryx_core::domain::entities::job::JobStatus::Completed 
-                   && job.status != keryx_core::domain::entities::job::JobStatus::Failed {
+                if !matches!(job.status, keryx_core::domain::entities::job::JobStatus::Completed | keryx_core::domain::entities::job::JobStatus::Failed(_)) {
                     println!(">>> KERYX ORCHESTRATOR: Recovering job {} (status: {:?})", job.id, job.status);
                     let uc = recovery_use_case.clone();
                     let job_id = job.id;

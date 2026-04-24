@@ -15,7 +15,7 @@ use crate::infrastructure::clients::video_composer::{VideoComposerClient, SlideI
 use crate::infrastructure::clients::video_generator::VideoGeneratorClient;
 use crate::infrastructure::clients::diffusion_engine::DiffusionEngineClient;
 use crate::infrastructure::clients::pptx_builder::{PptxBuilderClient, PptxSlide};
-use crate::domain::job_tracking::{JobTrackingData, CleanedSlide};
+use crate::domain::job_tracking::{JobTrackingData, CleanedSlide, StyledSlide};
 use sha2::{Sha256, Digest};
 
 pub struct IngestVideoUseCase {
@@ -257,7 +257,6 @@ impl IngestVideoUseCase {
             slides_input.push(LocalSlideInput {
                 image_url: tracking.cleaned_slides[i].cleaned_url.clone(),
                 duration,
-                timestamp: tracking.cleaned_slides[i].timestamp,
             });
         }
 
@@ -308,6 +307,7 @@ impl IngestVideoUseCase {
         // Phase 5 : Composition Vidéo
         let final_video_url = if let Some(existing) = tracking.final_video_url.clone() {
             self.log(job_id, "Phase 5 : Déjà réalisée. Chargement depuis le cache S3...").await;
+            existing
         } else {
             let _perm = self.gpu_semaphore.acquire().await?;
             let composer_slides: Vec<ComposerSlideInput> = slides_input.iter().map(|s| {
@@ -382,5 +382,4 @@ impl IngestVideoUseCase {
 struct LocalSlideInput {
     image_url: String,
     duration: f64,
-    timestamp: f64,
 }
