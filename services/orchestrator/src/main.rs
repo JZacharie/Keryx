@@ -115,7 +115,7 @@ async fn run() -> anyhow::Result<()> {
     let dewatermark_url = std::env::var("DEWATERMARK_URL").unwrap_or_else(|_| "http://keryx-dewatermark:8000".to_string());
     let voice_extractor_url = std::env::var("VOICE_EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-voice-extractor:8000".to_string());
     let video_composer_url = std::env::var("VIDEO_COMPOSER_URL").unwrap_or_else(|_| "http://keryx-video-composer:8000".to_string());
-    let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-wan2gp:8000".to_string());
+    let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-video-generator:8000".to_string());
     let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voice-cloner:8000".to_string());
 
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());

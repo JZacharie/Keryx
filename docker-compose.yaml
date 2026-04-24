@@ -18,7 +18,7 @@ services:
       - DEWATERMARK_URL=http://dewatermark:8011
       - VOICE_EXTRACTOR_URL=http://voice-extractor:8012
       - VIDEO_COMPOSER_URL=http://video-composer:8013
-      - VIDEO_GENERATOR_URL=http://wan2gp:8014
+      - VIDEO_GENERATOR_URL=http://video-generator:8014
       - VOICE_CLONER_URL=http://voice-cloner:9880
       - PPTX_URL=http://pptx-builder:8002
       - SCALING_MODE=compose
@@ -90,10 +90,10 @@ services:
     networks:
       - keryx-net
 
-  wan2gp:
+  video-generator:
     build:
       context: ./services/wan2gp
-    container_name: keryx-wan2gp
+    container_name: keryx-video-generator
     environment:
       - S3_ENDPOINT=${S3_ENDPOINT:-https://minio-170-api.zacharie.org}
       - S3_BUCKET=${S3_BUCKET:-keryx}
