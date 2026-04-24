@@ -30,7 +30,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.video_composer")
-logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}")
+V_ENCODER = os.getenv("VIDEO_ENCODER", "libx264")
+logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}, ENCODER={V_ENCODER}")
 
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -193,7 +194,7 @@ async def compose(req: ComposeRequest):
                 "-i", frame_path,
                 "-t", str(slide.duration),
                 "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-c:v", V_ENCODER, "-pix_fmt", "yuv420p",
                 "-r", str(req.fps),
                 seg_path
             )

@@ -225,7 +225,7 @@ function CreateModal({
   setApiKey: (v: string) => void;
 }) {
   const [videoUrl, setVideoUrl] = useState("");
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(["fr"]);
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(["fr", "en", "es", "de", "it", "ja"]);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
