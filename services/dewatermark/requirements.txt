@@ -7,7 +7,9 @@ opencv-python-headless<4.11
 Pillow==10.4.0
 numpy<2
 # SDXL optionnel — décommenter si USE_SDXL=true
-# torch==2.3.1
-# diffusers==0.30.0
-# transformers==4.43.3
-# accelerate==0.33.0
+# torch==2.4.1
+# torchvision==0.19.1
+# torchaudio==2.4.1
+# diffusers==0.30.3
+# transformers==4.44.2
+# accelerate==0.34.2
