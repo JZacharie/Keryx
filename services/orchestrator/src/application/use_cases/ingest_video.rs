@@ -185,6 +185,7 @@ impl IngestVideoUseCase {
 
         // Concaténation audio finale
         self.log(job_id, "Phase 4 : Assemblage de la piste audio finale...").await;
+        self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
         let final_audio_res = self.video_composer.concat_audio(&job_id.to_string(), fr_audio_urls).await?;
 
         // Phase 5 : Composition Vidéo

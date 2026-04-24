@@ -72,14 +72,47 @@ OLLAMA_URL=http://192.168.0.191:11434
 .
 ├── services/
 │   └── orchestrator/         # Core Rust service (Axum)
-│       ├── src/          # Hexagonal project structure
-│       ├── static/       # Cyberpunk Web UI
-│       └── Dockerfile    # Optimized multi-stage build
 ├── deploy/
-│   └── helm/             # Kubernetes localized charts (ArgoCD ready)
-├── TEST_PLAN.md          # Comprehensive verification strategy
+│   └── helm/             # Kubernetes localized charts
+├── TEST_PLAN.md          # Verification strategy
 └── README.md
 ```
+
+## 🌊 Distributed Orchestration Workflow
+
+The Keryx orchestrator manages a complex sequence of AI workers, scaling them up and down dynamically to optimize VRAM and CPU usage on the cluster.
+
+```mermaid
+graph TD
+    A[Source URL] -->|keryx-extractor| B[S3 Assets]
+    B -->|keryx-voice-extractor| C[Transcription]
+    B -->|keryx-video-composer| D[Slide Detection]
+    D -->|keryx-dewatermark| E[Clean Slides]
+    C -->|keryx-voice-extractor| F[Translation]
+    F -->|keryx-voice-cloner| G[Cloned Audio Segments]
+    G -->|keryx-video-composer| H[Final Audio]
+    H & E -->|keryx-video-composer| I[Final Localized Video]
+    E -->|keryx-video-generator| J[SVD Bonus Intro]
+```
+
+### Worker Execution Sequence:
+
+1.  **keryx-extractor** (Phase 1): Downloads source video and audio to S3.
+    *   *Dependencies*: Network, S3.
+2.  **keryx-voice-extractor** (Phase 2): Generates high-fidelity transcription using Faster-Whisper.
+    *   *Dependencies*: NVIDIA GPU (VRAM), S3.
+3.  **keryx-video-composer** (Phase 3): Analyzes video to detect frame-accurate slide transitions.
+    *   *Dependencies*: S3.
+4.  **keryx-dewatermark** (Phase 3B): Removes watermarks and UI clutter from detected slides using AI.
+    *   *Dependencies*: NVIDIA GPU, S3.
+5.  **keryx-voice-extractor** (Phase 4): Translates segments to the target language preserving context.
+    *   *Dependencies*: Ollama (Llama 3).
+6.  **keryx-voice-cloner** (Phase 4B): Generates localized audio segments using the speaker's cloned voice (XTTS v2).
+    *   *Dependencies*: NVIDIA GPU (High VRAM), S3.
+7.  **keryx-video-composer** (Phase 4C/5): Concatenates audio segments and performs final video assembly (synced overlay).
+    *   *Dependencies*: S3.
+8.  **keryx-video-generator** (Phase 6): Generates a cinematic AI intro animation (SVD) for the first slide.
+    *   *Dependencies*: NVIDIA GPU (High VRAM).
 
 ## 🚦 Status: 🟢 Production Ready (Phase 1 & 2)
 The orchestrator unit and Diffusion Engine are fully operational on GPU-enabled nodes (`vm169`), capable of end-to-end video localization with AI-driven visual re-styling and multilingual transcription.

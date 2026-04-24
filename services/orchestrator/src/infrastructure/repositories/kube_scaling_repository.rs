@@ -73,7 +73,7 @@ impl ScalingRepository for KubeScalingRepository {
                         8000
                     };
 
-                    self.wait_for_service_ping(deployment_name, service_port).await?;
+    self.wait_for_service_ping(namespace, deployment_name, service_port).await?;
                     
                     return Ok(());
                 }
@@ -116,7 +116,7 @@ impl ScalingRepository for KubeScalingRepository {
         Err(anyhow!("Timeout waiting for deployment {}/{} to be ready after 10m", namespace, deployment_name))
     }
 
-    async fn wait_for_service_ping(&self, service_name: &str, port: u16) -> Result<()> {
+    async fn wait_for_service_ping(&self, namespace: &str, service_name: &str, port: u16) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .redirect(reqwest::redirect::Policy::limited(5))
@@ -128,17 +128,18 @@ impl ScalingRepository for KubeScalingRepository {
         
         while attempts < 12 { // 1 minute (12 * 5s)
             for endpoint in &endpoints {
-                let url = format!("http://{}:{}{}", service_name, port, endpoint);
+                // Use FQDN to ensure resolution across namespaces
+                let url = format!("http://{}.{}:{}{}", service_name, namespace, port, endpoint);
                 match client.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
-                        tracing::info!("Service {} responded to health check on {}!", service_name, endpoint);
+                        tracing::info!("Service {} in {} responded to health check on {}!", service_name, namespace, endpoint);
                         return Ok(());
                     }
                     Ok(resp) => {
-                        tracing::debug!("Service {} ping {}: HTTP {} ({}s)", service_name, endpoint, resp.status(), attempts * 5);
+                        tracing::debug!("Service {}/{} ping {}: HTTP {} ({}s)", service_name, namespace, endpoint, resp.status(), attempts * 5);
                     }
                     Err(e) => {
-                        tracing::debug!("Service {} ping {} failed: {} ({}s)", service_name, endpoint, e, attempts * 5);
+                        tracing::debug!("Service {}/{} ping {} failed: {} ({}s)", service_name, namespace, endpoint, e, attempts * 5);
                     }
                 }
             }
@@ -146,7 +147,7 @@ impl ScalingRepository for KubeScalingRepository {
             sleep(Duration::from_secs(5)).await;
         }
         
-        Err(anyhow!("Service {} failed to respond to any health check (tried {:?}) after 300s", service_name, endpoints))
+        Err(anyhow!("Service {} in {} failed to respond to any health check (tried {:?}) after 300s", service_name, namespace, endpoints))
     }
 
     async fn scale_down(&self, namespace: &str, deployment_name: &str) -> Result<()> {
