@@ -206,6 +206,8 @@ impl IngestVideoUseCase {
 
         if tracking.cleaned_slides.len() < slide_res.slides.len() {
             let _perm = self.gpu_semaphore.acquire().await?;
+            self.log(job_id, "Phase 3 : Nettoyage des slides via Dewatermark...").await;
+            self.scaling_repo.scale_up("keryx", "keryx-dewatermark").await?;
             for slide in slide_res.slides.iter().skip(tracking.cleaned_slides.len()) {
                 self.log(job_id, &format!("Nettoyage slide {}...", slide.index)).await;
                 let clean_res = self.dewatermark.clean_image(&slide.image_url, &job_id.to_string(), false).await?;
@@ -278,6 +280,8 @@ impl IngestVideoUseCase {
 
         if tracking.cloned_audio_urls.len() < trans_segments.len() {
             let _perm = self.gpu_semaphore.acquire().await?;
+            self.log(job_id, "Phase 4 : Clonage vocal via microservice...").await;
+            self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
             for i in tracking.cloned_audio_urls.len()..trans_segments.len() {
                 let seg = &trans_segments[i];
                 let text = seg.translated.clone().unwrap_or_else(|| seg.text.clone());
@@ -299,6 +303,7 @@ impl IngestVideoUseCase {
             self.log(job_id, "Phase 4 : Assemblage de la piste audio finale...").await;
             self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
             let res = self.video_composer.concat_audio(&job_id.to_string(), tracking.cloned_audio_urls.clone()).await?;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
             tracking.final_audio_url = Some(res.url.clone());
             self.save_tracking_data(&tracking).await?;
             res.url
@@ -310,6 +315,8 @@ impl IngestVideoUseCase {
             existing
         } else {
             let _perm = self.gpu_semaphore.acquire().await?;
+            self.log(job_id, "Phase 5 : Composition vidéo via microservice...").await;
+            self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
             let composer_slides: Vec<ComposerSlideInput> = slides_input.iter().map(|s| {
                 ComposerSlideInput {
                     image_url: s.image_url.clone(),
