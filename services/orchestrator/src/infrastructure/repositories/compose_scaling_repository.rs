@@ -46,10 +46,10 @@ impl ScalingRepository for ComposeScalingRepository {
         };
 
         // Wait for ready via ping
-        self.wait_for_service_ping(deployment_name, port).await
+        self.wait_for_service_ping(_namespace, deployment_name, port).await
     }
 
-    async fn wait_for_service_ping(&self, service_name: &str, port: u16) -> Result<()> {
+    async fn wait_for_service_ping(&self, _namespace: &str, service_name: &str, port: u16) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()?;
