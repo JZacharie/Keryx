@@ -5,7 +5,7 @@ aioboto3==13.4.0
 httpx==0.28.1
 opencv-python-headless==4.13.0.92
 Pillow==10.4.0
-numpy==2.4.4
+numpy==2.2.6
 # SDXL optionnel — décommenter si USE_SDXL=true
 # torch==2.3.1
 # diffusers==0.30.0
