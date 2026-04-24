@@ -1,8 +1,8 @@
 fastapi==0.136.0
 uvicorn==0.27.1
-torch==2.2.1
-diffusers>=0.31.0
-transformers>=4.45.2
+torch==2.4.1
+diffusers==0.30.3
+transformers==4.44.2
 accelerate>=0.34.2
 safetensors==0.7.0
 pillow==10.4.0
@@ -11,8 +11,8 @@ aioboto3==13.4.0
 httpx==0.28.1
 pydantic==2.13.3
 huggingface-hub==0.36.2
-opencv-python-headless==4.13.0.92
-numpy==2.2.6
+opencv-python-headless<4.11
+numpy<2
 openai-whisper
 edge-tts
 moviepy==1.0.3
