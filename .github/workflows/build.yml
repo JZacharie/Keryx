@@ -35,7 +35,7 @@ jobs:
       voice_cloner: ${{ steps.filter.outputs.voice_cloner }}
       video_processor: ${{ steps.filter.outputs.video_processor }}
       voice_cloner_gpt: ${{ steps.filter.outputs.voice_cloner_gpt }}
-      wan2gp: ${{ steps.filter.outputs.wan2gp }}
+      video-generator: ${{ steps.filter.outputs.video-generator }}
       frontend: ${{ steps.filter.outputs.frontend }}
       extractor: ${{ steps.filter.outputs.extractor }}
       dewatermark: ${{ steps.filter.outputs.dewatermark }}
@@ -62,8 +62,8 @@ jobs:
               - 'services/video-processor/**'
             voice_cloner_gpt:
               - 'services/voice-cloner-gpt/**'
-            wan2gp:
-              - 'services/wan2gp/**'
+            video-generator:
+              - 'services/video-generator/**'
             frontend:
               - 'services/frontend/**'
             extractor:
@@ -354,10 +354,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  build-wan2gp:
-    name: 🌐 Build WAN2GP Image
+  build-video-generator:
+    name: 🌐 Build Video Generator Image
     needs: changes
-    if: needs.changes.outputs.wan2gp == 'true' || github.event.inputs.force_build == 'true'
+    if: needs.changes.outputs.video-generator == 'true' || github.event.inputs.force_build == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -378,7 +378,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/jzacharie/keryx-wan2gp
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-video-generator
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -387,7 +387,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
-          context: ./services/wan2gp
+          context: ./services/video-generator
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -599,8 +599,8 @@ jobs:
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-wan2gp, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
-    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.wan2gp == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
+    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-video-generator, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
+    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.video-generator == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Configure kubectl
@@ -642,8 +642,8 @@ jobs:
       #       kubectl rollout restart deployment voice-cloner-gpt -n keryx
       #     fi
 
-      #     if [ "${{ needs.changes.outputs.wan2gp }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
-      #       kubectl rollout restart deployment wan2gp -n keryx
+      #     if [ "${{ needs.changes.outputs.video-generator }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+      #       kubectl rollout restart deployment video-generator -n keryx
       #     fi
 
       - name: Quick Restart Pods
