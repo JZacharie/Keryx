@@ -1,6 +1,6 @@
 openai-whisper
 moviepy<2.0.0
-numpy==2.2.6
+numpy==2.4.4
 transformers
 torch
 torchaudio
@@ -9,7 +9,7 @@ tqdm
 pydub
 fastapi
 uvicorn
-requests
+requests==2.33.1
 python-multipart
 opencv-python-headless==4.13.0.92
 ffmpeg-python

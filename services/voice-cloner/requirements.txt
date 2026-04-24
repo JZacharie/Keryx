@@ -4,5 +4,5 @@ python-multipart==0.0.26
 pytest
 httpx==0.28.1
 aioboto3
-boto3
+boto3==1.42.95
 # TTS and transformers are pre-installed for better caching
