@@ -55,6 +55,8 @@ futures = "0.3"
 uuid = { version = "1.23.1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
+sha2 = "0.10"
+hex = "0.4"
 
 # Computer Vision — requires libclang (llvm/clang). Uncomment in Docker build env.
 # opencv = { version = "0.93", default-features = false, features = ["videoio", "imgproc", "imgcodecs"] }

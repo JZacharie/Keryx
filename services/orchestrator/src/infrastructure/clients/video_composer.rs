@@ -35,20 +35,20 @@ pub struct DetectSlidesRequest {
     pub output_prefix: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SlideFrame {
     pub index: u32,
     pub timestamp: f64,
     pub image_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DetectSlidesResponse {
     pub status: String,
     pub slides: Vec<SlideFrame>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ComposeResponse {
     pub status: String,
     pub url: String,

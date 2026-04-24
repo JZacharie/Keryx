@@ -19,7 +19,7 @@ pub struct Segment {
     pub translated: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TranscribeResponse {
     pub status: String,
     pub segments: Vec<Segment>,
@@ -34,7 +34,7 @@ pub struct TranslateRequest {
     pub job_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TranslateResponse {
     pub status: String,
     pub segments: Vec<Segment>,

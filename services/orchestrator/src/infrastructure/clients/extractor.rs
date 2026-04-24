@@ -10,7 +10,7 @@ pub struct ExtractRequest {
     pub job_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExtractResponse {
     pub status: String,
     pub video_url: String,

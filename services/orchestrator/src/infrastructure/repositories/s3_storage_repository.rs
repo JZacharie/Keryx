@@ -54,13 +54,41 @@ impl StorageRepository for S3StorageRepository {
             .send()
             .await?;
 
-        // Return a reachable HTTP URL
         let url = if self.endpoint.ends_with('/') {
             format!("{}{}/{}", self.endpoint, self.bucket, remote_path)
         } else {
             format!("{}/{}/{}", self.endpoint, self.bucket, remote_path)
         };
         Ok(url)
+    }
+
+    async fn upload_buffer(&self, buffer: Vec<u8>, remote_path: &str, content_type: &str) -> Result<String> {
+        let body = ByteStream::from(buffer);
+        self.client.put_object()
+            .bucket(&self.bucket)
+            .key(remote_path)
+            .content_type(content_type)
+            .body(body)
+            .send()
+            .await?;
+
+        let url = if self.endpoint.ends_with('/') {
+            format!("{}{}/{}", self.endpoint, self.bucket, remote_path)
+        } else {
+            format!("{}/{}/{}", self.endpoint, self.bucket, remote_path)
+        };
+        Ok(url)
+    }
+
+    async fn get_file_content(&self, remote_path: &str) -> Result<Vec<u8>> {
+        let output = self.client.get_object()
+            .bucket(&self.bucket)
+            .key(remote_path)
+            .send()
+            .await?;
+
+        let data = output.body.collect().await?.to_vec();
+        Ok(data)
     }
 
     async fn get_presigned_url(&self, _remote_path: &str) -> Result<String> {
