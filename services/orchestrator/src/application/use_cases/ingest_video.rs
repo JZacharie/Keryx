@@ -102,7 +102,7 @@ impl IngestVideoUseCase {
             let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-wan2gp").await;
         } else if res.is_err() {
             self.log(job_id, "⚠️ Erreur détectée : Les workers sont maintenus actifs pour inspection des logs.").await;
         } else {
@@ -304,9 +304,9 @@ impl IngestVideoUseCase {
         // Phase 6 : Animations Bonus (SVD) sur la première slide
         if let Some(first_slide) = slides_input.first() {
             self.log(job_id, "Phase 6 : Génération d'une animation bonus (SVD) pour l'intro...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-video-generator").await?;
+            self.scaling_repo.scale_up("keryx", "keryx-wan2gp").await?;
             let _ = self.video_generator.animate(&job_id.to_string(), &first_slide.image_url).await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-wan2gp").await;
         }
 
         // Phase 7 : Notification Slack finale

@@ -39,7 +39,7 @@ impl ScalingRepository for ComposeScalingRepository {
             "keryx-dewatermark" => 8011,
             "keryx-voice-extractor" => 8012,
             "keryx-video-composer" => 8013,
-            "keryx-video-generator" => 8014,
+            "keryx-wan2gp" => 8014,
             "keryx-voice-cloner" => 9880,
             "keryx-pptx-builder" => 8002,
             _ => 80,

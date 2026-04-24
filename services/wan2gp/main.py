@@ -36,7 +36,7 @@ class HealthCheckFilter(logging.Filter):
 app = FastAPI(title="Keryx Video Generator (SVD)", version="1.0.0")
 
 # Configuration
-SERVICE_NAME = "keryx-video-generator"
+SERVICE_NAME = "keryx-wan2gp"
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
