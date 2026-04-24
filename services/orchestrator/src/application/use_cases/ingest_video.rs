@@ -13,6 +13,8 @@ use crate::infrastructure::clients::voice_extractor::VoiceExtractorClient;
 use crate::infrastructure::clients::voice_cloner::VoiceClonerClient;
 use crate::infrastructure::clients::video_composer::{VideoComposerClient, SlideInput as ComposerSlideInput};
 use crate::infrastructure::clients::video_generator::VideoGeneratorClient;
+use crate::infrastructure::clients::diffusion_engine::DiffusionEngineClient;
+use crate::infrastructure::clients::pptx_builder::{PptxBuilderClient, PptxSlide};
 use crate::domain::job_tracking::{JobTrackingData, CleanedSlide};
 use sha2::{Sha256, Digest};
 
@@ -29,6 +31,8 @@ pub struct IngestVideoUseCase {
     voice_cloner: Arc<VoiceClonerClient>,
     video_composer: Arc<VideoComposerClient>,
     video_generator: Arc<VideoGeneratorClient>,
+    diffusion_engine: Arc<DiffusionEngineClient>,
+    pptx_builder: Arc<PptxBuilderClient>,
     gpu_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
@@ -44,6 +48,8 @@ impl IngestVideoUseCase {
         voice_cloner: Arc<VoiceClonerClient>,
         video_composer: Arc<VideoComposerClient>,
         video_generator: Arc<VideoGeneratorClient>,
+        diffusion_engine: Arc<DiffusionEngineClient>,
+        pptx_builder: Arc<PptxBuilderClient>,
         gpu_semaphore: Arc<tokio::sync::Semaphore>,
     ) -> Self {
         Self { 
@@ -57,6 +63,8 @@ impl IngestVideoUseCase {
             voice_cloner,
             video_composer,
             video_generator,
+            diffusion_engine,
+            pptx_builder,
             gpu_semaphore,
         }
     }
@@ -106,6 +114,8 @@ impl IngestVideoUseCase {
             let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
         } else if res.is_err() {
             self.log(job_id, "⚠️ Erreur détectée : Les workers sont maintenus actifs pour inspection des logs.").await;
         } else {
@@ -212,6 +222,30 @@ impl IngestVideoUseCase {
         } else {
             self.log(job_id, "Phase 3 (Cleaning) : Toutes les slides sont déjà nettoyées.").await;
         }
+ 
+        // Phase 3C : Stylisation des slides (Bonus / Optionnel)
+        if tracking.styled_slides.len() < tracking.cleaned_slides.len() {
+            let _perm = self.gpu_semaphore.acquire().await?;
+            self.log(job_id, "Phase 3C : Stylisation des slides via Diffusion Engine...").await;
+            self.scaling_repo.scale_up("keryx", "keryx-diffusion-engine").await?;
+            
+            for slide in tracking.cleaned_slides.iter().skip(tracking.styled_slides.len()) {
+                self.log(job_id, &format!("Stylisation slide {}...", slide.index)).await;
+                // Prompt par défaut ou celui du job (à étendre)
+                let prompt = "SaaS professional presentation, clean UI, tech aesthetic";
+                let style_res = self.diffusion_engine.style_image(&slide.cleaned_url, prompt, 0.5, 0.0, 2, None).await?;
+                
+                tracking.styled_slides.push(StyledSlide {
+                    index: slide.index,
+                    original_url: slide.cleaned_url.clone(),
+                    styled_url: style_res.url,
+                    timestamp: slide.timestamp,
+                });
+                self.save_tracking_data(&tracking).await?;
+            }
+            self.log(job_id, "Stylisation slides terminée. Libération du worker diffusion-engine...").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
+        }
 
         let mut slides_input = Vec::new();
         for i in 0..tracking.cleaned_slides.len() {
@@ -303,6 +337,31 @@ impl IngestVideoUseCase {
             self.scaling_repo.scale_up("keryx", "keryx-video-generator").await?;
             let _ = self.video_generator.animate(&job_id.to_string(), &first_slide.image_url).await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
+        }
+ 
+        // Phase 7 : Génération PPTX
+        if tracking.pptx_url.is_none() {
+            self.log(job_id, "Phase 7 : Génération du support de présentation PPTX...").await;
+            self.scaling_repo.scale_up("keryx", "keryx-pptx-builder").await?;
+            
+            let pptx_slides = tracking.styled_slides.iter().map(|s| {
+                PptxSlide {
+                    image_url: s.styled_url.clone(),
+                    text: "".to_string(), // On pourrait ajouter les notes ici
+                }
+            }).collect();
+            
+            match self.pptx_builder.build_pptx(&job_id.to_string(), pptx_slides, None).await {
+                Ok(pptx_res) => {
+                    tracking.pptx_url = Some(pptx_res.url);
+                    self.save_tracking_data(&tracking).await?;
+                    self.log(job_id, "Génération PPTX terminée.").await;
+                },
+                Err(e) => {
+                    self.log(job_id, &format!("⚠️ Erreur lors de la génération PPTX (non-fatale): {}", e)).await;
+                }
+            }
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
         }
 
         // Phase 7 : Notification Slack finale

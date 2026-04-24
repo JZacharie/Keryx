@@ -11,10 +11,20 @@ pub struct JobTrackingData {
     pub transcription: Option<TranscribeResponse>,
     pub slide_detection: Option<DetectSlidesResponse>,
     pub cleaned_slides: Vec<CleanedSlide>,
+    pub styled_slides: Vec<StyledSlide>,
     pub translation_segments: Option<Vec<Segment>>,
     pub cloned_audio_urls: Vec<String>,
     pub final_audio_url: Option<String>,
     pub final_video_url: Option<String>,
+    pub pptx_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StyledSlide {
+    pub index: u32,
+    pub original_url: String,
+    pub styled_url: String,
+    pub timestamp: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -30,6 +30,8 @@ use keryx_orchestrator::{
             voice_cloner::VoiceClonerClient,
             video_composer::VideoComposerClient,
             video_generator::VideoGeneratorClient,
+            diffusion_engine::DiffusionEngineClient,
+            pptx_builder::PptxBuilderClient,
         },
     },
 };
@@ -151,6 +153,8 @@ async fn run() -> anyhow::Result<()> {
     let voice_cloner = Arc::new(VoiceClonerClient::new(voice_cloner_url));
     let video_composer = Arc::new(VideoComposerClient::new(video_composer_url));
     let video_generator = Arc::new(VideoGeneratorClient::new(video_generator_url));
+    let diffusion_engine = Arc::new(DiffusionEngineClient::new(std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://keryx-diffusion-engine:8000".to_string())));
+    let pptx_builder = Arc::new(PptxBuilderClient::new(std::env::var("PPTX_URL").unwrap_or_else(|_| "http://keryx-pptx-builder:8000".to_string())));
 
     // Initialize use case
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
@@ -164,10 +168,22 @@ async fn run() -> anyhow::Result<()> {
         voice_cloner.clone(),
         video_composer.clone(),
         video_generator.clone(),
+        diffusion_engine.clone(),
+        pptx_builder.clone(),
+        Arc::new(tokio::sync::Semaphore::new(1)),
     ));
 
     // Initialize state
+    let state = AppState {
+        ingest_video_use_case,
+        extractor,
+        dewatermark,
+        voice_extractor,
+        voice_cloner,
+        video_composer,
         video_generator,
+        diffusion_engine,
+        pptx_builder,
         gpu_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
     };
 
