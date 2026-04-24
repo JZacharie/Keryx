@@ -30,13 +30,10 @@ ENV UV_SYSTEM_PYTHON=1
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /root/.local/bin/uvx /bin/
 
-# 3. Install heavy dependencies first to maximize cache hits
-RUN uv pip install setuptools wheel pip
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install torch transformers diffusers accelerate
+# 3. Install dependencies from requirements.txt
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r requirements.txt --no-build-isolation
+    uv pip install -r requirements.txt
 
 # 5. Final step: Copy only the application code
 COPY main.py .
