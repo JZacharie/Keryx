@@ -40,6 +40,18 @@ pub struct TranslateResponse {
     pub segments: Vec<Segment>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct RefineRequest {
+    pub text: String,
+    pub job_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RefineResponse {
+    pub status: String,
+    pub refined_text: String,
+}
+
 pub struct VoiceExtractorClient {
     client: Client,
     base_url: String,
@@ -96,6 +108,28 @@ impl VoiceExtractorClient {
         if !resp.status().is_success() {
             let error = resp.text().await?;
             return Err(anyhow::anyhow!("Voice Extractor error: {}", error));
+        }
+
+        Ok(resp.json().await?)
+    }
+
+    pub async fn refine(&self, text: &str, job_id: &str) -> Result<RefineResponse> {
+        let req = RefineRequest {
+            text: text.to_string(),
+            job_id: job_id.to_string(),
+        };
+
+        let resp = inject_trace_context(
+            self.client
+                .post(format!("{}/refine", self.base_url))
+                .json(&req)
+        )
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let error = resp.text().await?;
+            return Err(anyhow::anyhow!("Voice Extractor error (refine): {}", error));
         }
 
         Ok(resp.json().await?)

@@ -20,6 +20,7 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: vm169
         kubernetes.io/arch: amd64
+      runtimeClassName: nvidia
       containers:
         - name: video-composer
           image: ghcr.io/jzacharie/keryx-video-composer:latest
@@ -40,10 +41,17 @@ spec:
               value: "https://minio-170-api.zacharie.org"
             - name: S3_BUCKET
               value: "keryx"
+            - name: VIDEO_ENCODER
+              value: "h264_nvenc"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility,video"
           resources:
             limits:
               cpu: 2000m
               memory: 4Gi
+              nvidia.com/gpu: 1
             requests:
               cpu: 500m
               memory: 1Gi

@@ -27,11 +27,11 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://orchestrator.p.zacharie.org";
 const ENV_API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
 
-const LANGS = ["fr", "en", "es", "de", "it", "ja", "zh", "ar", "pt"];
+const LANGS = ["fr", "it", "ja", "zh", "ar", "pt", "hi"];
 
 export default function CreatePage() {
   const [videoUrl, setVideoUrl] = useState("");
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(["fr"]);
+  const [selectedLangs] = useState<string[]>(LANGS);
   const [prompt, setPrompt] = useState("");
   const [apiKey, setApiKey] = useState(() => {
     if (ENV_API_KEY) return ENV_API_KEY;
@@ -43,11 +43,6 @@ export default function CreatePage() {
   const [error, setError] = useState("");
   const [createdJob, setCreatedJob] = useState<Job | null>(null);
 
-  const toggleLang = (lang: string) => {
-    setSelectedLangs((prev) =>
-      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    );
-  };
 
   const handleSubmit = async () => {
     if (!videoUrl.trim()) {
@@ -89,7 +84,6 @@ export default function CreatePage() {
       setCreatedJob(job);
       setVideoUrl("");
       setPrompt("");
-      setSelectedLangs(["fr"]);
       if (!ENV_API_KEY && typeof window !== "undefined") {
         localStorage.setItem("keryx_api_key", apiKey);
       }
@@ -142,27 +136,6 @@ export default function CreatePage() {
           </div>
         </div>
 
-        {/* Langues */}
-        <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
-            Langues cibles ({selectedLangs.length} sélectionnée
-            {selectedLangs.length > 1 ? "s" : ""})
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {LANGS.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => toggleLang(lang)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all border ${selectedLangs.includes(lang)
-                    ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
-                    : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                  }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Prompt */}
         <div>

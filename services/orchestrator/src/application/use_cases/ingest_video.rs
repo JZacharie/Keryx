@@ -9,7 +9,7 @@ use keryx_core::domain::entities::job::JobStatus;
 
 use crate::infrastructure::clients::extractor::ExtractorClient;
 use crate::infrastructure::clients::dewatermark::DewatermarkClient;
-use crate::infrastructure::clients::voice_extractor::VoiceExtractorClient;
+use crate::infrastructure::clients::voice_extractor::{VoiceExtractorClient, Segment};
 use crate::infrastructure::clients::voice_cloner::VoiceClonerClient;
 use crate::infrastructure::clients::video_composer::{VideoComposerClient, SlideInput as ComposerSlideInput};
 use crate::infrastructure::clients::video_generator::VideoGeneratorClient;
@@ -343,81 +343,140 @@ impl IngestVideoUseCase {
             });
         }
 
-        // Phase 4 : Traduction et Clonage
-        let trans_segments = if let Some(existing) = tracking.translation_segments.clone() {
-            self.log(job_id, "Phase 4 (Traduction) : Déjà réalisée. Chargement depuis le cache S3...").await;
-            existing
-        } else {
+        // --- Pipeline Multi-langue ---
+        
+        // 1. Fluidification (Une seule fois pour toutes les langues)
+        if tracking.refined_texts.is_empty() && !tracking.cleaned_slides.is_empty() {
             let _perm = self.gpu_semaphore.acquire().await?;
-            self.log(job_id, "Phase 4 : Traduction via microservice...").await;
+            self.log(job_id, "Phase 4 : Fluidification du texte (Original Lang)...").await;
             self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
-            self.job_repo.update_status(job_id, JobStatus::Translating).await?;
-            let res = self.voice_extractor.translate(trans_res.segments.clone(), "fr", &job_id.to_string()).await?;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
             
-            tracking.translation_segments = Some(res.segments.clone());
-            self.save_tracking_data(&tracking).await?;
-            res.segments
-        };
+            let mut refined_list = Vec::new();
+            for i in 0..tracking.cleaned_slides.len() {
+                let slide_start = tracking.cleaned_slides[i].timestamp;
+                let slide_end = if i + 1 < tracking.cleaned_slides.len() {
+                    tracking.cleaned_slides[i+1].timestamp
+                } else {
+                    trans_res.duration
+                };
 
-        if tracking.cloned_audio_urls.len() < trans_segments.len() {
-            let _perm = self.gpu_semaphore.acquire().await?;
-            self.log(job_id, "Phase 4 : Clonage vocal via microservice...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
-            for i in tracking.cloned_audio_urls.len()..trans_segments.len() {
-                let seg = &trans_segments[i];
-                let text = seg.translated.clone().unwrap_or_else(|| seg.text.clone());
-                self.log(job_id, &format!("Génération clonage vocal segment {}/{}...", i+1, trans_segments.len())).await;
-                let clone_res = self.voice_cloner.perform_cloning(&text, "fr", &ext_res.audio_url, &job_id.to_string()).await?;
-                tracking.cloned_audio_urls.push(clone_res.url);
-                self.save_tracking_data(&tracking).await?;
+                let slide_text = trans_res.segments.iter()
+                    .filter(|s| s.start >= slide_start && s.start < slide_end)
+                    .map(|s| s.text.clone())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                if slide_text.trim().is_empty() {
+                    refined_list.push("".to_string());
+                    continue;
+                }
+
+                self.log(job_id, &format!("Fluidification slide {}/{}...", i+1, tracking.cleaned_slides.len())).await;
+                let refined_res = self.voice_extractor.refine(&slide_text, &job_id.to_string()).await?;
+                refined_list.push(refined_res.refined_text);
             }
-            self.log(job_id, "Clonage vocal terminé. Libération du worker voice-cloner...").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
-        } else {
-            self.log(job_id, "Phase 4 (Clonage) : Tous les segments audio sont déjà générés.").await;
+            tracking.refined_texts = refined_list;
+            self.save_tracking_data(&tracking).await?;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
         }
 
-        let final_audio_url = if let Some(existing) = tracking.final_audio_url.clone() {
-            self.log(job_id, "Phase 4 (Assemblage) : Déjà réalisée. Chargement depuis le cache S3...").await;
-            existing
-        } else {
-            self.log(job_id, "Phase 4 : Assemblage de la piste audio finale...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
-            let res = self.video_composer.concat_audio(&job_id.to_string(), tracking.cloned_audio_urls.clone()).await?;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
-            tracking.final_audio_url = Some(res.url.clone());
-            self.save_tracking_data(&tracking).await?;
-            res.url
-        };
+        // 2. Traitement par Langue
+        for lang in &job.target_langs {
+            self.log(job_id, &format!("--- Traitement Langue : {} ---", lang)).await;
 
-        // Phase 5 : Composition Vidéo
-        let final_video_url = if let Some(existing) = tracking.final_video_url.clone() {
-            self.log(job_id, "Phase 5 : Déjà réalisée. Chargement depuis le cache S3...").await;
-            existing
-        } else {
-            let _perm = self.gpu_semaphore.acquire().await?;
-            self.log(job_id, "Phase 5 : Composition vidéo via microservice...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
-            let composer_slides: Vec<ComposerSlideInput> = slides_input.iter().map(|s| {
-                ComposerSlideInput {
-                    image_url: s.image_url.clone(),
-                    duration: s.duration,
+            // Phase 4 : Traduction
+            if !tracking.translations.contains_key(lang) {
+                let _perm = self.gpu_semaphore.acquire().await?;
+                self.log(job_id, &format!("Phase 4 : Traduction en {}...", lang)).await;
+                self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
+                
+                let mut lang_segments = Vec::new();
+                for (i, text) in tracking.refined_texts.iter().enumerate() {
+                    if text.is_empty() {
+                        lang_segments.push(Segment { 
+                            start: tracking.cleaned_slides[i].timestamp, 
+                            end: tracking.cleaned_slides[i].timestamp, 
+                            text: "".to_string(), 
+                            translated: Some("".to_string()) 
+                        });
+                        continue;
+                    }
+                    let dummy = Segment { 
+                        start: tracking.cleaned_slides[i].timestamp, 
+                        end: 0.0, // sera ajusté par le service
+                        text: text.clone(), 
+                        translated: None 
+                    };
+                    let res = self.voice_extractor.translate(vec![dummy], lang, &job_id.to_string()).await?;
+                    if let Some(s) = res.segments.first() {
+                        lang_segments.push(s.clone());
+                    }
                 }
-            }).collect();
+                tracking.translations.insert(lang.clone(), lang_segments);
+                self.save_tracking_data(&tracking).await?;
+                let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+            }
 
-            let res = self.video_composer.compose(
-                &job_id.to_string(), 
-                composer_slides, 
-                Some(final_audio_url.clone())
-            ).await?;
-            self.log(job_id, "Composition vidéo terminée. Libération du worker video-composer...").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
-            
-            tracking.final_video_url = Some(res.url.clone());
-            self.save_tracking_data(&tracking).await?;
-            res.url
-        };
+            // Phase 5 : Clonage Vocal
+            if !tracking.cloned_audios.contains_key(lang) {
+                let _perm = self.gpu_semaphore.acquire().await?;
+                self.log(job_id, &format!("Phase 5 : Clonage vocal en {}...", lang)).await;
+                self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
+                
+                let mut lang_audios = Vec::new();
+                let mut lang_durations = Vec::new();
+                let segments = tracking.translations.get(lang).unwrap();
+                for (i, seg) in segments.iter().enumerate() {
+                    let text = seg.translated.clone().unwrap_or_else(|| seg.text.clone());
+                    if text.trim().is_empty() {
+                        lang_audios.push("".to_string());
+                        lang_durations.push(1.0); // Fallback 1s pour les slides vides
+                        continue;
+                    }
+                    self.log(job_id, &format!("Génération audio {} slide {}/{}...", lang, i+1, segments.len())).await;
+                    let res = self.voice_cloner.perform_cloning(&text, lang, &ext_res.audio_url, &job_id.to_string()).await?;
+                    lang_audios.push(res.url);
+                    let dur: f64 = res.duration.parse().unwrap_or(2.0);
+                    lang_durations.push(dur);
+                }
+                tracking.cloned_audios.insert(lang.clone(), lang_audios);
+                tracking.cloned_durations.insert(lang.clone(), lang_durations);
+                self.save_tracking_data(&tracking).await?;
+                let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
+            }
+
+            // Phase 6 : Composition Finale (Audio + Vidéo)
+            if !tracking.final_videos.contains_key(lang) {
+                let _perm = self.gpu_semaphore.acquire().await?;
+                self.log(job_id, &format!("Phase 6 : Composition finale en {}...", lang)).await;
+                self.scaling_repo.scale_up("keryx", "keryx-video-composer").await?;
+                
+                // Audio
+                let audios = tracking.cloned_audios.get(lang).unwrap();
+                let concat_res = self.video_composer.concat_audio(&job_id.to_string(), audios.clone()).await?;
+                tracking.final_audios.insert(lang.clone(), concat_res.url.clone());
+
+                // Vidéo
+                let durations = tracking.cloned_durations.get(lang).expect("Missing cloned_durations");
+                let mut composer_slides = Vec::new();
+                for (i, slide) in tracking.styled_slides.iter().enumerate() {
+                    composer_slides.push(ComposerSlideInput {
+                        image_url: slide.styled_url.clone(),
+                        duration: durations[i], // Utilise la durée du clone audio pour cette langue
+                    });
+                }
+
+                let res = self.video_composer.compose(
+                    &job_id.to_string(), 
+                    composer_slides, 
+                    Some(concat_res.url)
+                ).await?;
+                
+                tracking.final_videos.insert(lang.clone(), res.url);
+                self.save_tracking_data(&tracking).await?;
+                let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
+            }
+        }
 
         // Phase 6 : Animations Bonus (SVD) sur la première slide
         if let Some(first_slide) = slides_input.first() {
@@ -455,8 +514,8 @@ impl IngestVideoUseCase {
 
         // Phase 7 : Notification Slack finale
         let slack_msg = format!(
-            "📽️ *Job Concluded: {}*\n\n✅ *Final Video:* {}\n🎙️ *Final Audio:* {}\n📊 *Job Status:* COMPLETED",
-            job_id, final_video_url, final_audio_url
+            "📽️ *Job Concluded: {}*\n\n✅ *Status:* COMPLETED\n🌍 *Languages:* {}",
+            job_id, job.target_langs.join(", ")
         );
         let _ = self.notification_repo.notify_slack(&slack_msg).await;
 

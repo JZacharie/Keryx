@@ -30,8 +30,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.video_composer")
-V_ENCODER = os.getenv("VIDEO_ENCODER", "libx264")
-logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}, ENCODER={V_ENCODER}")
+logger = logging.getLogger("keryx.video_composer")
+logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}")
 
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -45,6 +45,33 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
+
+# Global encoder state
+v_encoder = os.getenv("VIDEO_ENCODER", "h264_nvenc")
+
+async def check_encoder_availability(encoder: str) -> bool:
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-encoders",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await process.communicate()
+        return encoder in stdout.decode()
+    except Exception:
+        return False
+
+@app.on_event("startup")
+async def startup_event():
+    global v_encoder
+    if v_encoder == "h264_nvenc":
+        if not await check_encoder_availability("h264_nvenc"):
+            logger.warning("h264_nvenc not available in ffmpeg, falling back to libx264")
+            v_encoder = "libx264"
+        else:
+            logger.info("h264_nvenc encoder detected and ready")
+    else:
+        logger.info(f"Using configured encoder: {v_encoder}")
 
 s3_session = aioboto3.Session()
 
@@ -194,7 +221,7 @@ async def compose(req: ComposeRequest):
                 "-i", frame_path,
                 "-t", str(slide.duration),
                 "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-                "-c:v", V_ENCODER, "-pix_fmt", "yuv420p",
+                "-c:v", v_encoder, "-pix_fmt", "yuv420p",
                 "-r", str(req.fps),
                 seg_path
             )

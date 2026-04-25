@@ -316,6 +316,61 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
             ✅ Job finished
           </p>
         )}
+        
+        {tracking && (tracking.final_videos || tracking.final_video_url) && (
+          <div className="mt-6 pt-6 border-t border-white/10 space-y-4">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Résultats</h4>
+            <div className="grid grid-cols-1 gap-2">
+              {/* Nouveau format multi-langue */}
+              {tracking.final_videos && Object.entries(tracking.final_videos).map(([lang, url]: [string, any]) => (
+                <a
+                  key={lang}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <span className="font-bold uppercase text-xs">Vidéo - {lang}</span>
+                  </div>
+                  <Play className="w-3 h-3 group-hover:scale-125 transition-transform" />
+                </a>
+              ))}
+              
+              {/* Ancien format mono-langue */}
+              {!tracking.final_videos && tracking.final_video_url && (
+                <a
+                  href={tracking.final_video_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <span className="font-bold uppercase text-xs">Vidéo Finale</span>
+                  </div>
+                  <Play className="w-3 h-3 group-hover:scale-125 transition-transform" />
+                </a>
+              )}
+
+              {tracking.pptx_url && (
+                <a
+                  href={tracking.pptx_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Server className="w-4 h-4 text-blue-400" />
+                    <span className="font-bold uppercase text-xs">Présentation PPTX</span>
+                  </div>
+                  <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                </a>
+              )}
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
     </motion.div>
@@ -325,7 +380,7 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
 // ─────────────────────────────────────────────
 // Create Job Modal
 // ─────────────────────────────────────────────
-const LANGS = ["fr", "en", "es", "de", "it", "ja", "zh", "ar", "pt"];
+const LANGS = ["fr", "it", "ja", "zh", "ar", "pt", "hi"];
 
 function CreateModal({
   onClose,
@@ -339,16 +394,11 @@ function CreateModal({
   setApiKey: (v: string) => void;
 }) {
   const [videoUrl, setVideoUrl] = useState("");
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(["fr", "en", "es", "de", "it", "ja"]);
+  const [selectedLangs] = useState<string[]>(LANGS);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const toggleLang = (lang: string) => {
-    setSelectedLangs((prev) =>
-      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    );
-  };
 
   const handleSubmit = async () => {
     if (!videoUrl.trim()) { setError("L'URL de la vidéo est requise."); return; }
@@ -425,26 +475,6 @@ function CreateModal({
             </div>
           </div>
 
-          {/* Langues */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
-              Langues cibles ({selectedLangs.length} sélectionnée{selectedLangs.length > 1 ? "s" : ""})
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {LANGS.map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => toggleLang(lang)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all border ${selectedLangs.includes(lang)
-                      ? "bg-[#8A2BE2]/20 border-[#8A2BE2]/60 text-[#8A2BE2]"
-                      : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                    }`}
-                >
-                  {lang}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Prompt optionnel */}
           <div>

@@ -161,6 +161,29 @@ async def translate_text(text: str, target_lang: str) -> str:
     return await translate_with_google(text, target_lang)
 
 
+async def refine_text(text: str) -> str:
+    """Reformate un texte transcrit pour le rendre fluide (original language)."""
+    if TRANSLATOR_BACKEND != "ollama":
+        return text # Pas de reformatage intelligent sans LLM
+        
+    prompt = (
+        "Reformat the following transcribed text to be a single fluid, professional paragraph. "
+        "Maintain the original language. Do not change the meaning. "
+        "Return ONLY the refined text:\n" + text
+    )
+    try:
+        async with httpx.AsyncClient(timeout=60, verify=False) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", text).strip()
+    except Exception as e:
+        logger.warning(f"Ollama refinement failed: {e}. Returning original.")
+        return text
+
+
 # ── API Models ───────────────────────────────────────────────────────────────
 
 class TranscribeRequest(BaseModel):
@@ -193,6 +216,17 @@ class TranslateRequest(BaseModel):
 class TranslateResponse(BaseModel):
     status: str
     segments: List[Segment]
+    service: str = SERVICE_NAME
+
+
+class RefineRequest(BaseModel):
+    text: str
+    job_id: str
+
+
+class RefineResponse(BaseModel):
+    status: str
+    refined_text: str
     service: str = SERVICE_NAME
 
 
@@ -293,6 +327,20 @@ async def translate(req: TranslateRequest):
     logger.info(f"[{request_id}] Translation done in {elapsed:.1f}s")
 
     return TranslateResponse(status="success", segments=list(translated_segments))
+
+
+@app.post("/refine", response_model=RefineResponse)
+async def refine(req: RefineRequest):
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{request_id}] Refining text for job={req.job_id}")
+    start_time = time.time()
+
+    refined = await refine_text(req.text)
+
+    elapsed = time.time() - start_time
+    logger.info(f"[{request_id}] Refinement done in {elapsed:.1f}s")
+
+    return RefineResponse(status="success", refined_text=refined)
 
 
 if __name__ == "__main__":
