@@ -183,21 +183,25 @@ impl IngestVideoUseCase {
     pub async fn execute(&self, job_id: Uuid) -> Result<()> {
         let res = self.execute_internal(job_id).await;
 
-        // Final Scale Down - skipped if error or debug mode enabled to allow log inspection
+        // Final Scale Down - Toujours scaler à 0 à la fin pour libérer les ressources
         let keep_workers_env = std::env::var("KERYX_DEBUG_KEEP_WORKERS").unwrap_or_default() == "true";
         
-        if res.is_ok() && !keep_workers_env {
+        if !keep_workers_env {
             self.log(job_id, "Phase finale : scale down de tous les services AI...").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-extractor").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-dewatermark").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-composer").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-video-generator").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-pptx-builder").await;
-        } else if res.is_err() {
-            self.log(job_id, "⚠️ Erreur détectée : Les workers sont maintenus actifs pour inspection des logs.").await;
+            let services = vec![
+                "keryx-extractor",
+                "keryx-dewatermark",
+                "keryx-voice-extractor",
+                "keryx-voice-cloner",
+                "keryx-voice-cloner-gpt",
+                "keryx-video-composer",
+                "keryx-video-generator",
+                "keryx-diffusion-engine",
+                "keryx-pptx-builder",
+            ];
+            for svc in services {
+                let _ = self.scaling_repo.scale_down("keryx", svc).await;
+            }
         } else {
             self.log(job_id, "ℹ️ Mode DEBUG actif : Les workers sont maintenus actifs.").await;
         }

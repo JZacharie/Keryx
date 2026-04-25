@@ -49,7 +49,7 @@ S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
 # Global encoder state
 v_encoder = os.getenv("VIDEO_ENCODER", "h264_nvenc")
 
-async def check_encoder_availability(encoder: str) -> bool:
+async def list_available_encoders() -> List[str]:
     try:
         process = await asyncio.create_subprocess_exec(
             "ffmpeg", "-encoders",
@@ -57,15 +57,29 @@ async def check_encoder_availability(encoder: str) -> bool:
             stderr=asyncio.subprocess.PIPE
         )
         stdout, _ = await process.communicate()
-        return encoder in stdout.decode()
+        lines = stdout.decode().splitlines()
+        encoders = []
+        for line in lines:
+            if "V" in line and "..." in line: # Simple heuristic for video encoders
+                parts = line.split()
+                if len(parts) >= 2:
+                    encoders.append(parts[1])
+        return encoders
     except Exception:
-        return False
+        return []
+
+async def check_encoder_availability(encoder: str) -> bool:
+    encoders = await list_available_encoders()
+    return encoder in encoders
 
 @app.on_event("startup")
 async def startup_event():
     global v_encoder
+    available = await list_available_encoders()
+    logger.info(f"Available video encoders: {', '.join(available)}")
+    
     if v_encoder == "h264_nvenc":
-        if not await check_encoder_availability("h264_nvenc"):
+        if "h264_nvenc" not in available:
             logger.warning("h264_nvenc not available in ffmpeg, falling back to libx264")
             v_encoder = "libx264"
         else:
