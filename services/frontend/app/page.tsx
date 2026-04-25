@@ -122,12 +122,43 @@ const StatCard = ({
 );
 
 // ─────────────────────────────────────────────
-// Log Drawer
+// Log & Pipeline Drawer
 // ─────────────────────────────────────────────
+const PIPELINE_STEPS = [
+  { id: "extraction", label: "Extraction", icon: Globe },
+  { id: "transcription", label: "Transcription", icon: Terminal },
+  { id: "slide_detection", label: "Détection Slides", icon: Activity },
+  { id: "cleaning", label: "Nettoyage (AI)", icon: Zap },
+  { id: "styling", label: "Stylisation (AI)", icon: Zap },
+  { id: "translation", label: "Traduction", icon: Globe },
+  { id: "cloning", label: "Clonage Vocal", icon: Zap },
+  { id: "composition", label: "Composition Finale", icon: Play },
+];
+
 function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose: () => void }) {
   const [logs, setLogs] = useState<string[]>([]);
+  const [tracking, setTracking] = useState<any>(null);
   const [done, setDone] = useState(false);
+  const [restarting, setRestarting] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const fetchTracking = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/jobs/${job.id}/tracking`);
+      if (res.ok) {
+        const data = await res.json();
+        setTracking(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch tracking:", e);
+    }
+  }, [job.id]);
+
+  useEffect(() => {
+    fetchTracking();
+    const interval = setInterval(fetchTracking, 5000);
+    return () => clearInterval(interval);
+  }, [fetchTracking]);
 
   useEffect(() => {
     const url = `${API_BASE}/api/jobs/${job.id}/logs`;
@@ -151,6 +182,41 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  const handleRestart = async (step: string) => {
+    if (!confirm(`Relancer à partir de l'étape "${step}" ? Toutes les étapes suivantes seront supprimées.`)) return;
+    setRestarting(step);
+    try {
+      const effectiveKey = ENV_API_KEY || apiKey;
+      const res = await fetch(`${API_BASE}/api/jobs/${job.id}/restart/${step}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${effectiveKey}`,
+        }
+      });
+      if (!res.ok) throw new Error("Restart failed");
+      setLogs((prev) => [...prev, `[SYSTEM] Restarting pipeline from step: ${step}...`]);
+    } catch (e) {
+      alert("Erreur lors du restart");
+    } finally {
+      setRestarting(null);
+    }
+  };
+
+  const isStepDone = (stepId: string) => {
+    if (!tracking) return false;
+    switch (stepId) {
+      case "extraction": return !!tracking.extraction;
+      case "transcription": return !!tracking.transcription;
+      case "slide_detection": return !!tracking.slide_detection;
+      case "cleaning": return tracking.cleaned_slides?.length > 0;
+      case "styling": return tracking.styled_slides?.length > 0;
+      case "translation": return !!tracking.translation_segments;
+      case "cloning": return tracking.cloned_audio_urls?.length > 0;
+      case "composition": return !!tracking.final_video_url;
+      default: return false;
+    }
+  };
+
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -160,10 +226,10 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
       className="fixed inset-y-0 right-0 w-full max-w-2xl z-50 glass border-l border-white/10 flex flex-col"
     >
       <div className="flex items-center justify-between p-6 border-b border-white/10">
-        <div>
+        <div className="flex-1 min-w-0">
           <h3 className="font-bold text-lg flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-primary" />
-            Live Logs — Job {job.id.slice(0, 8)}
+            <Activity className="w-5 h-5 text-primary" />
+            Job Details — {job.id.slice(0, 8)}
           </h3>
           <p className="text-xs text-slate-400 truncate mt-1">{job.source_url}</p>
         </div>
@@ -174,7 +240,53 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
           </button>
         </div>
       </div>
+
+      {/* Pipeline Status */}
+      <div className="p-6 bg-white/[0.02] border-b border-white/10">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Pipeline IA</h4>
+          <span className="text-[10px] text-slate-600 uppercase font-bold">Relancer</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {PIPELINE_STEPS.map((step) => {
+            const done = isStepDone(step.id);
+            const StepIcon = step.icon;
+            return (
+              <div
+                key={step.id}
+                className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                  done 
+                    ? "bg-emerald-950/20 border-emerald-900/50 text-emerald-300" 
+                    : "bg-slate-900/40 border-slate-800 text-slate-500"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`p-1.5 rounded-lg ${done ? "bg-emerald-500/10" : "bg-slate-800"}`}>
+                    <StepIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] font-bold truncate">{step.label}</span>
+                </div>
+                <button
+                  onClick={() => handleRestart(step.id)}
+                  disabled={restarting !== null}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    restarting === step.id 
+                      ? "bg-blue-500 text-white animate-pulse" 
+                      : "bg-white/5 hover:bg-white/20 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-6 font-mono text-[12px] space-y-0.5">
+        <div className="flex items-center gap-2 mb-4 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+          <Terminal className="w-3 h-3" /> Execution Logs
+        </div>
         {logs.length === 0 && !done && (
           <div className="flex items-center gap-2 text-slate-500 animate-pulse">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -191,7 +303,9 @@ function LogDrawer({ job, apiKey, onClose }: { job: Job; apiKey: string; onClose
                   ? "text-amber-400"
                   : line.includes("✅") || line.includes("completed")
                     ? "text-emerald-400"
-                    : "text-slate-300"
+                    : line.includes("[SYSTEM]")
+                      ? "text-blue-400 font-bold"
+                      : "text-slate-300"
             }
           >
             {line}

@@ -100,6 +100,86 @@ impl IngestVideoUseCase {
         Ok(())
     }
 
+    pub async fn get_tracking_data(&self, job_id: Uuid) -> Result<Option<JobTrackingData>> {
+        let job = self.job_repo.find_by_id(job_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Job {} not found", job_id))?;
+        let url_hash = self.calculate_hash(&job.source_url);
+        Ok(self.load_tracking_data(&url_hash).await)
+    }
+
+    pub async fn restart_from_step(&self, job_id: Uuid, step: &str) -> Result<()> {
+        let job = self.job_repo.find_by_id(job_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Job {} not found", job_id))?;
+        
+        let url_hash = self.calculate_hash(&job.source_url);
+        let mut tracking = self.load_tracking_data(&url_hash).await
+            .ok_or_else(|| anyhow::anyhow!("Tracking data not found for job {}", job_id))?;
+
+        self.log(job_id, &format!("Réinitialisation du job à partir de l'étape : {}", step)).await;
+
+        match step {
+            "extraction" => {
+                tracking.extraction = None;
+                tracking.transcription = None;
+                tracking.slide_detection = None;
+                tracking.cleaned_slides = Vec::new();
+                tracking.styled_slides = Vec::new();
+                tracking.translation_segments = None;
+                tracking.cloned_audio_urls = Vec::new();
+                tracking.final_audio_url = None;
+                tracking.final_video_url = None;
+                tracking.pptx_url = None;
+            }
+            "transcription" => {
+                tracking.transcription = None;
+                tracking.translation_segments = None;
+                tracking.cloned_audio_urls = Vec::new();
+                tracking.final_audio_url = None;
+                tracking.final_video_url = None;
+            }
+            "slide_detection" => {
+                tracking.slide_detection = None;
+                tracking.cleaned_slides = Vec::new();
+                tracking.styled_slides = Vec::new();
+                tracking.final_video_url = None;
+                tracking.pptx_url = None;
+            }
+            "cleaning" => {
+                tracking.cleaned_slides = Vec::new();
+                tracking.styled_slides = Vec::new();
+                tracking.final_video_url = None;
+                tracking.pptx_url = None;
+            }
+            "styling" => {
+                tracking.styled_slides = Vec::new();
+                tracking.final_video_url = None;
+                tracking.pptx_url = None;
+            }
+            "translation" => {
+                tracking.translation_segments = None;
+                tracking.cloned_audio_urls = Vec::new();
+                tracking.final_audio_url = None;
+                tracking.final_video_url = None;
+            }
+            "cloning" => {
+                tracking.cloned_audio_urls = Vec::new();
+                tracking.final_audio_url = None;
+                tracking.final_video_url = None;
+            }
+            "composition" => {
+                tracking.final_video_url = None;
+            }
+            _ => return Err(anyhow::anyhow!("Étape invalide : {}", step)),
+        }
+
+        self.save_tracking_data(&tracking).await?;
+        
+        // Reset job status to Pending or appropriate status to trigger restart
+        self.job_repo.update_status(job_id, JobStatus::Pending).await?;
+        
+        Ok(())
+    }
+
     pub async fn execute(&self, job_id: Uuid) -> Result<()> {
         let res = self.execute_internal(job_id).await;
 
@@ -175,6 +255,7 @@ impl IngestVideoUseCase {
             self.log(job_id, "Phase 2 : Déjà réalisée. Chargement depuis le cache S3...").await;
             existing
         } else {
+            let _perm = self.gpu_semaphore.acquire().await?;
             self.log(job_id, "Phase 2 : Transcription via microservice (Whisper)...").await;
             self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
             self.job_repo.update_status(job_id, JobStatus::Transcribing).await?;
@@ -267,6 +348,7 @@ impl IngestVideoUseCase {
             self.log(job_id, "Phase 4 (Traduction) : Déjà réalisée. Chargement depuis le cache S3...").await;
             existing
         } else {
+            let _perm = self.gpu_semaphore.acquire().await?;
             self.log(job_id, "Phase 4 : Traduction via microservice...").await;
             self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
             self.job_repo.update_status(job_id, JobStatus::Translating).await?;

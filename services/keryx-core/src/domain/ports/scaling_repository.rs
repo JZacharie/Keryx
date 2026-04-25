@@ -11,4 +11,7 @@ pub trait ScalingRepository: Send + Sync {
     
     /// Scales down a deployment to 0 replicas.
     async fn scale_down(&self, namespace: &str, deployment: &str) -> Result<()>;
+
+    /// Stops all other AI services that might conflict with the current one.
+    async fn preempt_conflicting_services(&self, namespace: &str, deployment: &str) -> Result<()>;
 }

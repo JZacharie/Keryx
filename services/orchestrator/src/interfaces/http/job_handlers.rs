@@ -67,6 +67,42 @@ pub async fn get_job_handler(
     }
 }
 
+pub async fn get_job_tracking_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    match state.ingest_video_use_case.get_tracking_data(id).await {
+        Ok(Some(tracking)) => Json(tracking).into_response(),
+        Ok(None) => (axum::http::StatusCode::NOT_FOUND, Json(json!({"error": "Tracking data not found"}))).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct RestartParams {
+    pub step: String,
+}
+
+pub async fn restart_job_handler(
+    State(state): State<AppState>,
+    Path((id, step)): Path<(Uuid, String)>,
+) -> impl IntoResponse {
+    match state.ingest_video_use_case.restart_from_step(id, &step).await {
+        Ok(_) => {
+            // Spawn background task to restart execution
+            let use_case = state.ingest_video_use_case.clone();
+            tokio::spawn(async move {
+                if let Err(e) = use_case.execute(id).await {
+                    tracing::error!("Job {} restart failed: {:?}", id, e);
+                    let _ = use_case.get_job_repo().update_status(id, JobStatus::Failed(e.to_string())).await;
+                }
+            });
+            (axum::http::StatusCode::OK, Json(json!({"message": format!("Job restarted from step {}", step)}))).into_response()
+        }
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
 pub async fn list_jobs_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {

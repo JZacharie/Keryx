@@ -25,6 +25,10 @@ impl ScalingRepository for KubeScalingRepository {
     async fn scale_up(&self, namespace: &str, deployment_name: &str) -> Result<()> {
         let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
         
+        // Ensure mutual exclusion on GPU by preempting other AI services
+        tracing::info!("Ensuring exclusive access for {}. Preempting other AI services...", deployment_name);
+        let _ = self.preempt_conflicting_services(namespace, deployment_name).await;
+
         tracing::info!("Scaling up deployment {}/{} to 1...", namespace, deployment_name);
         
         let patch = json!({
@@ -126,7 +130,7 @@ impl ScalingRepository for KubeScalingRepository {
         let endpoints = vec!["/health", "/docs", "/"];
         let mut attempts = 0;
         
-        while attempts < 12 { // 1 minute (12 * 5s)
+        while attempts < 120 { // 10 minutes (120 * 5s)
             for endpoint in &endpoints {
                 // Use FQDN to ensure resolution across namespaces
                 let url = format!("http://{}.{}:{}{}", service_name, namespace, port, endpoint);
@@ -164,6 +168,40 @@ impl ScalingRepository for KubeScalingRepository {
         if deployment_name == "whisperx" {
             let _ = self.patch_httpscaledobject_min_replicas(namespace, "whisperx-http", 0).await;
         }
+        
+        Ok(())
+    }
+
+    async fn preempt_conflicting_services(&self, namespace: &str, current_deployment: &str) -> Result<()> {
+        let ai_services = vec![
+            "keryx-dewatermark",
+            "keryx-voice-extractor",
+            "keryx-video-generator",
+            "keryx-voice-cloner",
+            "keryx-voice-cloner-gpt",
+            "keryx-diffusion-engine",
+            "keryx-video-composer",
+        ];
+
+        for deploy in ai_services {
+            if deploy == current_deployment {
+                continue;
+            }
+            // Scale down directly to avoid recursive loops if we used self.scale_down
+            let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
+            let patch = json!({ "spec": { "replicas": 0 } });
+            let _ = deployments.patch(deploy, &PatchParams::default(), &Patch::Merge(&patch)).await;
+            
+            // Also reset HSO
+            let hso_name = format!("{}-http", deploy);
+            let _ = self.patch_httpscaledobject_min_replicas(namespace, &hso_name, 0).await;
+        }
+        
+        // Also enforce external VRAM priority (llama-cpp etc)
+        let _ = self.enforce_vram_priority().await;
+        
+        // Small delay to allow Kubernetes to start killing pods
+        sleep(Duration::from_secs(2)).await;
         
         Ok(())
     }
@@ -206,4 +244,5 @@ impl KubeScalingRepository {
         api.patch(resource_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         Ok(())
     }
+
 }

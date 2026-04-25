@@ -19,7 +19,11 @@ impl ComposeScalingRepository {
 
 #[async_trait]
 impl ScalingRepository for ComposeScalingRepository {
-    async fn scale_up(&self, _namespace: &str, deployment_name: &str) -> Result<()> {
+    async fn scale_up(&self, namespace: &str, deployment_name: &str) -> Result<()> {
+        // Ensure mutual exclusion on GPU by preempting other AI services
+        tracing::info!("Ensuring exclusive access for {}. Preempting other AI services...", deployment_name);
+        let _ = self.preempt_conflicting_services(namespace, deployment_name).await;
+
         // In Docker Compose, the deployment_name usually maps to the container name or service name
         // We'll try to start the container.
         tracing::info!("Docker Compose: Starting container {}...", deployment_name);
@@ -46,7 +50,7 @@ impl ScalingRepository for ComposeScalingRepository {
         };
 
         // Wait for ready via ping
-        self.wait_for_service_ping(_namespace, deployment_name, port).await
+        self.wait_for_service_ping(namespace, deployment_name, port).await
     }
 
     async fn wait_for_service_ping(&self, _namespace: &str, service_name: &str, port: u16) -> Result<()> {
@@ -60,7 +64,7 @@ impl ScalingRepository for ComposeScalingRepository {
         
         tracing::info!("Waiting for service {} to respond...", service_name);
         
-        while attempts < 30 { // 1 minute timeout for local
+        while attempts < 300 { // 10 minutes timeout (300 * 2s)
             for endpoint in &endpoints {
                 let url = format!("http://{}:{}{}", service_name, port, endpoint);
                 match client.get(&url).send().await {
@@ -88,6 +92,34 @@ impl ScalingRepository for ComposeScalingRepository {
                 tracing::warn!("Failed to stop container {}: {}", deployment_name, e);
             }
         }
+        
+        Ok(())
+    }
+
+    /// Preempts all other AI services to ensure the current one has full access to resources.
+    async fn preempt_conflicting_services(&self, _namespace: &str, current_container: &str) -> Result<()> {
+        let ai_services = vec![
+            "keryx-dewatermark",
+            "keryx-voice-extractor",
+            "keryx-video-generator",
+            "keryx-voice-cloner",
+            "keryx-voice-cloner-gpt",
+            "keryx-diffusion-engine",
+            "keryx-video-composer",
+        ];
+
+        let options = Some(StopContainerOptions { t: 5 });
+
+        for container in ai_services {
+            if container == current_container {
+                continue;
+            }
+            // Stop container
+            let _ = self.docker.stop_container(container, options.clone()).await;
+        }
+        
+        // Small delay to allow processes to exit
+        sleep(Duration::from_secs(2)).await;
         
         Ok(())
     }

@@ -11,7 +11,7 @@ use tower_http::trace::TraceLayer;
 
 use keryx_orchestrator::{
     state::AppState,
-    interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler},
+    interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler, get_job_tracking_handler, restart_job_handler},
     interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
     application::use_cases::ingest_video::IngestVideoUseCase,
     infrastructure::{
@@ -211,11 +211,13 @@ async fn run() -> anyhow::Result<()> {
         .route("/health", get(|| async { "OK" }))
         .route("/api/jobs", get(list_jobs_handler))
         .route("/api/jobs/:id", get(get_job_handler))
+        .route("/api/jobs/:id/tracking", get(get_job_tracking_handler))
         .route("/api/jobs/:id/logs", get(get_job_logs_sse_handler))
         .route("/api/jobs/:id/logs/raw", get(get_job_logs_raw_handler));
 
     let protected_routes = Router::new()
         .route("/api/jobs", post(create_job_handler))
+        .route("/api/jobs/:id/restart/:step", post(restart_job_handler))
         .layer(middleware::from_fn_with_state(auth_state, require_api_key));
 
     let app = Router::new()

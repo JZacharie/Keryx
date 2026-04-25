@@ -38,6 +38,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("keryx.diffusion")
 
+# Optimization: Reduce CUDA fragmentation
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"
+
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if "/health" in record.getMessage():
@@ -94,11 +97,13 @@ async def load_models():
         )
 
         if DEVICE == "cuda":
-            logger.info("Enabling VRAM optimizations...")
-            new_pipe.enable_model_cpu_offload()
+            logger.info("Enabling maximum VRAM optimizations...")
+            # Sequential CPU offload is more aggressive than model offload
+            new_pipe.enable_sequential_cpu_offload()
             new_pipe.enable_attention_slicing()
             new_pipe.enable_vae_slicing()
             new_pipe.enable_vae_tiling()
+            torch.cuda.empty_cache()
         else:
             new_pipe.to(DEVICE)
 
@@ -369,6 +374,9 @@ async def style_image(request: StylingRequest):
 
         # 3. Run Inference
         logger.info(f"[{request_id}] Starting SDXL Turbo inference (Steps: {request.num_inference_steps}, Strength: {request.strength})...")
+        if DEVICE == "cuda":
+            torch.cuda.empty_cache()
+            
         with torch.inference_mode():
             images = pipe(
                 brand_prompt,

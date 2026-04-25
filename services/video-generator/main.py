@@ -26,6 +26,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("keryx.video_generator")
 
+# Optimization: Reduce CUDA fragmentation
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"
+
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if "/health" in record.getMessage():
@@ -55,8 +58,10 @@ pipe = StableVideoDiffusionPipeline.from_pretrained(
 )
 
 if DEVICE == "cuda":
-    pipe.enable_model_cpu_offload()
+    # Sequential CPU offload is more aggressive than model offload
+    pipe.enable_sequential_cpu_offload()
     pipe.enable_attention_slicing()
+    torch.cuda.empty_cache()
 else:
     pipe.to(DEVICE)
 
@@ -148,6 +153,8 @@ async def animate_image(req: AnimationRequest):
         generator = torch.manual_seed(int(time.time()))
         
         def _run_svd():
+            if DEVICE == "cuda":
+                torch.cuda.empty_cache()
             with torch.inference_mode():
                 return pipe(
                     init_image,
