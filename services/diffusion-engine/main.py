@@ -15,6 +15,7 @@ import shutil
 import pathlib
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import torch
 from diffusers import (
@@ -55,46 +56,69 @@ MODEL_ID = os.getenv("MODEL_ID", "stabilityai/sdxl-turbo")
 CONTROLNET_ID = "diffusers/controlnet-canny-sdxl-1.0"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# Global variable for the pipeline
+pipe = None
+loading_error = None
+is_loading = False
+
+async def load_models():
+    global pipe, loading_error, is_loading
+    if is_loading or pipe is not None:
+        return
+    
+    is_loading = True
+    try:
+        logger.info(f"Starting model loading on {DEVICE}...")
+        torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32
+
+        # Load ControlNet
+        logger.info(f"Loading ControlNet: {CONTROLNET_ID}")
+        controlnet = await asyncio.to_thread(
+            ControlNetModel.from_pretrained,
+            CONTROLNET_ID,
+            torch_dtype=torch_dtype,
+            use_safetensors=True,
+            low_cpu_mem_usage=True
+        )
+
+        # Load Pipeline
+        logger.info(f"Loading Pipeline: {MODEL_ID}")
+        new_pipe = await asyncio.to_thread(
+            StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained,
+            MODEL_ID,
+            controlnet=controlnet,
+            torch_dtype=torch_dtype,
+            variant="fp16" if DEVICE == "cuda" else None,
+            use_safetensors=True,
+            low_cpu_mem_usage=True
+        )
+
+        if DEVICE == "cuda":
+            logger.info("Enabling VRAM optimizations...")
+            new_pipe.enable_model_cpu_offload()
+            new_pipe.enable_attention_slicing()
+            new_pipe.enable_vae_slicing()
+            new_pipe.enable_vae_tiling()
+        else:
+            new_pipe.to(DEVICE)
+
+        pipe = new_pipe
+        logger.info("Models loaded and optimized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to load models: {str(e)}", exc_info=True)
+        loading_error = str(e)
+    finally:
+        is_loading = False
+
+@app.on_event("startup")
+async def startup_event():
+    # Start loading models in the background
+    asyncio.create_task(load_models())
+
 # Brand Colors (Teamwork.com)
 TW_PINK = "#FF22B1"
 TW_SLATE = "#1D1C39"
 TW_WHITE = "#FFFFFF"
-
-print(f"Loading models on {DEVICE}...")
-torch_dtype = torch.float16 if DEVICE == "cuda" else torch.float32
-
-# Load ControlNet
-print(f"Loading ControlNet: {CONTROLNET_ID}")
-controlnet = ControlNetModel.from_pretrained(
-    CONTROLNET_ID,
-    torch_dtype=torch_dtype,
-    use_safetensors=True,
-    low_cpu_mem_usage=True
-)
-
-# Load Pipeline
-# Note: SDXL Turbo can be used with SDXL pipelines
-print(f"Loading Pipeline: {MODEL_ID}")
-pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
-    MODEL_ID,
-    controlnet=controlnet,
-    torch_dtype=torch_dtype,
-    variant="fp16" if DEVICE == "cuda" else None,
-    use_safetensors=True,
-    low_cpu_mem_usage=True
-)
-
-if DEVICE == "cuda":
-    # Memory Optimizations for CUDA
-    print("Enabling VRAM optimizations...")
-    pipe.enable_model_cpu_offload() # Moves models to GPU only when needed
-    pipe.enable_attention_slicing() # Reduces memory during attention
-    pipe.enable_vae_slicing()       # Slices VAE decoding for large images
-    pipe.enable_vae_tiling()        # Processes image in tiles to avoid OOM at 1024x1024
-else:
-    pipe.to(DEVICE)
-
-print("Models loaded and optimized successfully.")
 
 s3_session = aioboto3.Session()
 
@@ -117,6 +141,16 @@ class StylingRequest(BaseModel):
 
 @app.get("/health")
 def health():
+    if pipe is None:
+        if loading_error:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": loading_error, "service": "diffusion-engine"}
+            )
+        return JSONResponse(
+            status_code=503,
+            content={"status": "loading", "message": "Models are still loading", "service": "diffusion-engine"}
+        )
     return {"status": "ok", "device": DEVICE, "model": MODEL_ID, "controlnet": CONTROLNET_ID}
 
 async def download_image(url: str) -> Image.Image:
