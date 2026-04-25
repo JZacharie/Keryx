@@ -167,9 +167,10 @@ async def refine_text(text: str) -> str:
         return text # Pas de reformatage intelligent sans LLM
         
     prompt = (
-        "Reformat the following transcribed text to be a single fluid, professional paragraph. "
-        "Maintain the original language. Do not change the meaning. "
-        "Return ONLY the refined text:\n" + text
+        "You are an expert editor. Below is a transcribed text composed of several sentence fragments. "
+        "Rewrite this text to be fluid, coherent, and professional, while strictly maintaining the original language and meaning. "
+        "Correct any speech-to-text errors and remove filler words. "
+        "Return ONLY the refined text as a single paragraph:\n\n" + text
     )
     try:
         async with httpx.AsyncClient(timeout=60, verify=False) as client:
