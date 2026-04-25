@@ -99,6 +99,7 @@ impl ScalingRepository for ComposeScalingRepository {
     /// Preempts all other AI services to ensure the current one has full access to resources.
     async fn preempt_conflicting_services(&self, _namespace: &str, current_container: &str) -> Result<()> {
         let ai_services = vec![
+            "keryx-extractor",
             "keryx-dewatermark",
             "keryx-voice-extractor",
             "keryx-video-generator",
@@ -106,6 +107,7 @@ impl ScalingRepository for ComposeScalingRepository {
             "keryx-voice-cloner-gpt",
             "keryx-diffusion-engine",
             "keryx-video-composer",
+            "keryx-pptx-builder",
         ];
 
         let options = Some(StopContainerOptions { t: 5 });

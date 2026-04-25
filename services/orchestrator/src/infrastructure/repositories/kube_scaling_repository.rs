@@ -174,6 +174,7 @@ impl ScalingRepository for KubeScalingRepository {
 
     async fn preempt_conflicting_services(&self, namespace: &str, current_deployment: &str) -> Result<()> {
         let ai_services = vec![
+            "keryx-extractor",
             "keryx-dewatermark",
             "keryx-voice-extractor",
             "keryx-video-generator",
@@ -181,6 +182,7 @@ impl ScalingRepository for KubeScalingRepository {
             "keryx-voice-cloner-gpt",
             "keryx-diffusion-engine",
             "keryx-video-composer",
+            "keryx-pptx-builder",
         ];
 
         for deploy in ai_services {

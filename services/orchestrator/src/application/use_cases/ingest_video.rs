@@ -522,6 +522,22 @@ impl IngestVideoUseCase {
         self.job_repo.update_status(job_id, JobStatus::Completed).await?;
         self.log(job_id, "✅ Job distribué terminé avec succès.").await;
 
+        // Cleanup final : S'assurer que tous les services sont à 0 pour libérer les ressources
+        let services = vec![
+            "keryx-extractor",
+            "keryx-voice-extractor",
+            "keryx-dewatermark",
+            "keryx-diffusion-engine",
+            "keryx-voice-cloner",
+            "keryx-voice-cloner-gpt",
+            "keryx-video-composer",
+            "keryx-video-generator",
+            "keryx-pptx-builder",
+        ];
+        for svc in services {
+            let _ = self.scaling_repo.scale_down("keryx", svc).await;
+        }
+
         Ok(())
     }
 }
