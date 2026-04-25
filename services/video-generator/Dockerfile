@@ -35,8 +35,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # 4. Final step: Copy only the application code
 COPY main.py .
 
-# Add non-root user
-RUN useradd -m keryx && chown -R keryx:keryx /app
+# Create non-root user and cache directories
+RUN useradd -m keryx && \
+    mkdir -p $HF_HOME && \
+    chown -R keryx:keryx /app
+
 USER keryx
 
 EXPOSE 8000

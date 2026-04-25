@@ -101,6 +101,9 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - hf-models:/app/huggingface
     networks:
       - keryx-net
 
@@ -149,6 +152,9 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - hf-models:/app/huggingface
     networks:
       - keryx-net
 
@@ -188,3 +194,4 @@ networks:
 volumes:
   coqui-models:
   keryx-cache:
+  hf-models:
