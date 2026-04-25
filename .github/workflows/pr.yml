@@ -26,7 +26,7 @@ jobs:
           components: clippy, rustfmt
 
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install mold & opencv dependencies
         run: |
