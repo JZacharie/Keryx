@@ -12,15 +12,15 @@ services:
       - S3_BUCKET=${S3_BUCKET:-keryx}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-keryx}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-keryx_secret}
-      - EXTRACTOR_URL=http://keryx-extractor:8001
-      - DEWATERMARK_URL=http://keryx-dewatermark:8002
-      - VOICE_EXTRACTOR_URL=http://keryx-voice-extractor:8003
-      - VIDEO_COMPOSER_URL=http://keryx-video-composer:8004
-      - VIDEO_GENERATOR_URL=http://keryx-video-generator:8005
-      - VOICE_CLONER_URL=http://keryx-voice-cloner:8006
-      - VOICE_CLONER_GPT_URL=http://keryx-voice-cloner-gpt:8007
-      - DIFFUSION_URL=http://keryx-diffusion-engine:8008
-      - PPTX_URL=http://keryx-pptx-builder:8009
+      - EXTRACTOR_URL=http://keryx-extractor:8000
+      - DEWATERMARK_URL=http://keryx-dewatermark:8000
+      - VOICE_EXTRACTOR_URL=http://keryx-voice-extractor:8000
+      - VIDEO_COMPOSER_URL=http://keryx-video-composer:8000
+      - VIDEO_GENERATOR_URL=http://keryx-video-generator:8000
+      - VOICE_CLONER_URL=http://keryx-voice-cloner:8000
+      - VOICE_CLONER_GPT_URL=http://keryx-voice-cloner-gpt:8000
+      - DIFFUSION_URL=http://keryx-diffusion-engine:8000
+      - PPTX_URL=http://keryx-pptx-builder:8000
       - SCALING_MODE=compose
       - OTEL_ENDPOINT=http://o2-openobserve-router.openobserve.svc:5080
       - OTEL_AUTH_TOKEN=Basic am9zZXBoQHphY2hhcmllLm9yZzpTdXBlcm1hbi02OTIzMA==
@@ -38,9 +38,9 @@ services:
     container_name: keryx-extractor
     profiles: ["ai"]
     ports:
-      - "8001:8001"
+      - "8001:8000"
     environment:
-      - PORT=8001
+      - PORT=8000
     env_file:
       - .env
     volumes:
@@ -54,9 +54,9 @@ services:
     container_name: keryx-dewatermark
     profiles: ["ai"]
     ports:
-      - "8002:8002"
+      - "8002:8000"
     environment:
-      - PORT=8002
+      - PORT=8000
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -78,9 +78,9 @@ services:
     container_name: keryx-voice-extractor
     profiles: ["ai"]
     ports:
-      - "8003:8003"
+      - "8003:8000"
     environment:
-      - PORT=8003
+      - PORT=8000
       - TRANSLATOR_BACKEND=ollama
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
@@ -106,9 +106,9 @@ services:
     container_name: keryx-video-composer
     profiles: ["ai"]
     ports:
-      - "8004:8004"
+      - "8004:8000"
     environment:
-      - PORT=8004
+      - PORT=8000
       - VIDEO_ENCODER=h264_nvenc
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
@@ -130,9 +130,9 @@ services:
     container_name: keryx-video-generator
     profiles: ["ai"]
     ports:
-      - "8005:8005"
+      - "8005:8000"
     environment:
-      - PORT=8005
+      - PORT=8000
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -156,9 +156,9 @@ services:
     container_name: keryx-voice-cloner
     profiles: ["ai"]
     ports:
-      - "8006:8006"
+      - "8006:8000"
     environment:
-      - PORT=8006
+      - PORT=8000
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -182,9 +182,9 @@ services:
     container_name: keryx-voice-cloner-gpt
     profiles: ["ai"]
     ports:
-      - "8007:8007"
+      - "8007:8000"
     environment:
-      - PORT=8007
+      - PORT=8000
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -210,9 +210,9 @@ services:
     container_name: keryx-diffusion-engine
     profiles: ["ai"]
     ports:
-      - "8008:8008"
+      - "8008:8000"
     environment:
-      - PORT=8008
+      - PORT=8000
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -236,9 +236,9 @@ services:
     container_name: keryx-pptx-builder
     profiles: ["ai"]
     ports:
-      - "8009:8009"
+      - "8009:8000"
     environment:
-      - PORT=8009
+      - PORT=8000
     env_file:
       - .env
     networks:
