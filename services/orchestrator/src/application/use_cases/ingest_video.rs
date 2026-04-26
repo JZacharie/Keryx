@@ -75,6 +75,8 @@ impl IngestVideoUseCase {
 
     /// Log une ligne dans Redis ET dans tracing simultanement.
     async fn log(&self, job_id: Uuid, msg: &str) {
+        println!("[Job {}] {}", job_id, msg);
+        let _ = std::io::stdout().flush();
         tracing::info!("[Job {}] {}", job_id, msg);
         let _ = self.job_repo.append_log(job_id, msg).await;
     }
@@ -147,6 +149,12 @@ impl IngestVideoUseCase {
             "cleaning" => {
                 tracking.cleaned_slides = Vec::new();
                 tracking.styled_slides = Vec::new();
+                tracking.refined_texts = Vec::new();
+                tracking.translations.clear();
+                tracking.cloned_audios.clear();
+                tracking.cloned_durations.clear();
+                tracking.final_audios.clear();
+                tracking.final_videos.clear();
                 tracking.final_video_url = None;
                 tracking.pptx_url = None;
             }
@@ -363,6 +371,18 @@ impl IngestVideoUseCase {
                     timestamp: slide.timestamp,
                 });
             }
+            self.save_tracking_data(&tracking).await?;
+        }
+        
+        // FALLBACK: If no slides detected, create at least one virtual slide for the whole duration
+        if tracking.cleaned_slides.is_empty() {
+            self.log(job_id, "⚠️ Aucune slide détectée. Création d'une slide virtuelle par défaut.").await;
+            tracking.cleaned_slides.push(CleanedSlide {
+                index: 0,
+                original_url: "https://raw.githubusercontent.com/JZacharie/Keryx/main/services/orchestrator/begin.mp4".to_string(), // Placeholder or first frame
+                cleaned_url: "https://raw.githubusercontent.com/JZacharie/Keryx/main/services/orchestrator/begin.mp4".to_string(),
+                timestamp: 0.0,
+            });
             self.save_tracking_data(&tracking).await?;
         }
  

@@ -106,11 +106,16 @@ async def download_file_s3(url: str, dest: str):
         async with _s3_client() as s3:
             await s3.download_file(bucket, key, dest)
     else:
-        async with httpx.AsyncClient(verify=False) as client:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"}
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, headers=headers) as client:
             async with client.stream("GET", url) as resp:
+                resp.raise_for_status()
                 with open(dest, "wb") as f:
                     async for chunk in resp.aiter_bytes(8192):
                         f.write(chunk)
+        
+        if not os.path.exists(dest) or os.path.getsize(dest) == 0:
+            raise HTTPException(500, f"Downloaded file from {url} is empty or missing.")
 
 
 # ── Traduction ───────────────────────────────────────────────────────────────
