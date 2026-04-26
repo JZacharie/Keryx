@@ -29,10 +29,8 @@ logger = logging.getLogger("keryx.voice_extractor")
 
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        if "/health" in record.getMessage():
-            record.levelno = logging.DEBUG
-            record.levelname = "DEBUG"
-        return True
+        # Suppress /health from logs if they contain it
+        return "/health" not in record.getMessage()
 
 from contextlib import asynccontextmanager
 
@@ -74,7 +72,7 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "https://minio-170-api.zacharie.org")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "keryx")
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama.ollama.svc.cluster.local:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 # TRANSLATOR_BACKEND: "ollama" (default — meilleure qualité) ou "google" (fallback gratuit)
@@ -346,6 +344,12 @@ async def refine(req: RefineRequest):
 
 if __name__ == "__main__":
     import uvicorn
+    # Configure uvicorn log format to match basicConfig
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    log_config["formatters"]["access"]["fmt"] = log_fmt
+    log_config["formatters"]["default"]["fmt"] = log_fmt
+    
     # Filter out health check access logs from uvicorn
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=log_config)
