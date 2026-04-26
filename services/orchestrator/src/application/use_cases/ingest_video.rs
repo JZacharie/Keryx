@@ -86,7 +86,7 @@ impl IngestVideoUseCase {
     }
 
     async fn load_tracking_data(&self, hash: &str) -> Option<JobTrackingData> {
-        let path = format!("jobs/{}/tracking.json", hash);
+        let path = format!("{}/orchestrator/tracking.json", hash);
         match self._storage_repo.get_file_content(&path).await {
             Ok(content) => serde_json::from_slice(&content).ok(),
             Err(_) => None,
@@ -94,7 +94,7 @@ impl IngestVideoUseCase {
     }
 
     async fn save_tracking_data(&self, data: &JobTrackingData) -> Result<()> {
-        let path = format!("jobs/{}/tracking.json", data.url_hash);
+        let path = format!("{}/orchestrator/tracking.json", data.url_hash);
         let json = serde_json::to_vec(data)?;
         self._storage_repo.upload_buffer(json, &path, "application/json").await?;
         Ok(())
@@ -289,6 +289,7 @@ impl IngestVideoUseCase {
             res
         };
 
+        /* 
         if tracking.cleaned_slides.len() < slide_res.slides.len() {
             let _perm = self.gpu_semaphore.acquire().await?;
             self.log(job_id, "Phase 3 : Nettoyage des slides via Dewatermark...").await;
@@ -309,7 +310,21 @@ impl IngestVideoUseCase {
         } else {
             self.log(job_id, "Phase 3 (Cleaning) : Toutes les slides sont déjà nettoyées.").await;
         }
+        */
+        // Bypass cleaning: use original images as "cleaned"
+        if tracking.cleaned_slides.len() < slide_res.slides.len() {
+            for slide in slide_res.slides.iter().skip(tracking.cleaned_slides.len()) {
+                tracking.cleaned_slides.push(CleanedSlide {
+                    index: slide.index,
+                    original_url: slide.image_url.clone(),
+                    cleaned_url: slide.image_url.clone(),
+                    timestamp: slide.timestamp,
+                });
+            }
+            self.save_tracking_data(&tracking).await?;
+        }
  
+        /* 
         // Phase 3C : Stylisation des slides (Bonus / Optionnel)
         if tracking.styled_slides.len() < tracking.cleaned_slides.len() {
             let _perm = self.gpu_semaphore.acquire().await?;
@@ -332,6 +347,19 @@ impl IngestVideoUseCase {
             }
             self.log(job_id, "Stylisation slides terminée. Libération du worker diffusion-engine...").await;
             let _ = self.scaling_repo.scale_down("keryx", "keryx-diffusion-engine").await;
+        }
+        */
+        // Bypass styling: use cleaned (original) as "styled"
+        if tracking.styled_slides.len() < tracking.cleaned_slides.len() {
+            for slide in tracking.cleaned_slides.iter().skip(tracking.styled_slides.len()) {
+                tracking.styled_slides.push(StyledSlide {
+                    index: slide.index,
+                    original_url: slide.cleaned_url.clone(),
+                    styled_url: slide.cleaned_url.clone(),
+                    timestamp: slide.timestamp,
+                });
+            }
+            self.save_tracking_data(&tracking).await?;
         }
 
         let mut slides_input = Vec::new();
@@ -517,9 +545,14 @@ impl IngestVideoUseCase {
         }
 
         // Phase 7 : Notification Slack finale
+        let mut audio_links = String::new();
+        for (lang, url) in &tracking.final_audios {
+            audio_links.push_str(&format!("\n• *{}*: <{}|Listen Audio 🔊>", lang, url));
+        }
+
         let slack_msg = format!(
-            "📽️ *Job Concluded: {}*\n\n✅ *Status:* COMPLETED\n🌍 *Languages:* {}",
-            job_id, job.target_langs.join(", ")
+            "📽️ *Job Concluded: {}*\n\n✅ *Status:* COMPLETED\n🌍 *Languages:* {}{}",
+            job_id, job.target_langs.join(", "), audio_links
         );
         let _ = self.notification_repo.notify_slack(&slack_msg).await;
 

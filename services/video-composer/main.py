@@ -294,7 +294,7 @@ async def compose(req: ComposeRequest):
             output_video = with_intro
 
         # 6. Upload
-        key = req.output_key or f"jobs/{req.job_id}/exports/composed_{uuid.uuid4()}.mp4"
+        key = req.output_key or f"{req.job_id}/video-composer/exports/composed_{uuid.uuid4()}.mp4"
         result_url = await upload_file(output_video, key)
 
         elapsed = time.time() - start_time
@@ -343,7 +343,7 @@ async def concat_audio(req: ConcatAudioRequest):
             merged_wav
         )
 
-        key = req.output_key or f"jobs/{req.job_id}/audio/merged_{uuid.uuid4()}.wav"
+        key = req.output_key or f"{req.job_id}/video-composer/audio/merged_{uuid.uuid4()}.wav"
         result_url = await upload_file(merged_wav, key, content_type="audio/wav")
 
         elapsed = time.time() - start_time
@@ -404,7 +404,7 @@ async def detect_slides(req: DetectSlidesRequest):
         logger.info(f"[{request_id}] {len(frame_files)} keyframes detected")
 
         # Upload frames to S3 and build response
-        prefix = req.output_prefix or f"jobs/{req.job_id}/slides"
+        prefix = req.output_prefix or f"{req.job_id}/video-composer/slides"
 
         async def upload_frame(i, fp, ts):
             key = f"{prefix}/frame_{i:04d}.jpg"

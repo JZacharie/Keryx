@@ -192,8 +192,8 @@ async def extract(req: ExtractRequest):
         await run_command(ffmpeg_cmd, request_id, "ffmpeg-audio")
 
         # -- 4. Parallel Upload to S3 ------------------------------
-        video_key = f"jobs/{req.job_id}/source/video.mp4"
-        audio_key = f"jobs/{req.job_id}/source/audio.{req.audio_format}"
+        video_key = f"{req.job_id}/extractor/source/video.mp4"
+        audio_key = f"{req.job_id}/extractor/source/audio.{req.audio_format}"
         
         video_url, audio_url = await asyncio.gather(
             upload_to_s3(video_path, video_key, "video/mp4", request_id),

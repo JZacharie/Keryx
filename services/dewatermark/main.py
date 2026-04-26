@@ -254,7 +254,7 @@ async def clean_image(req: ImageCleanRequest):
         else:
             cleaned = await asyncio.to_thread(remove_notebooklm_watermark_cv2, image)
 
-        key = req.output_key or f"jobs/{req.job_id}/dewatermark/{uuid.uuid4()}.png"
+        key = req.output_key or f"{req.job_id}/dewatermark/{uuid.uuid4()}.png"
         result_url = await upload_image_s3(cleaned, key)
 
         elapsed = time.time() - start_time
@@ -338,7 +338,7 @@ async def clean_video(req: VideoCleanRequest):
         )
 
         # 5. Upload
-        key = req.output_key or f"jobs/{req.job_id}/dewatermark/video_clean.mp4"
+        key = req.output_key or f"{req.job_id}/dewatermark/video_clean.mp4"
         result_url = await upload_video_s3(output_path, key)
 
         elapsed = time.time() - start_time

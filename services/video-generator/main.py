@@ -58,8 +58,8 @@ pipe = StableVideoDiffusionPipeline.from_pretrained(
 )
 
 if DEVICE == "cuda":
-    # Sequential CPU offload is more aggressive than model offload
-    pipe.enable_sequential_cpu_offload()
+    # model_cpu_offload is much faster than sequential for 16GB VRAM
+    pipe.enable_model_cpu_offload()
     pipe.enable_attention_slicing()
     torch.cuda.empty_cache()
 else:
@@ -172,7 +172,7 @@ async def animate_image(req: AnimationRequest):
         video_data = await asyncio.to_thread(create_video_bytes, frames, req.fps)
 
         # 4. Upload
-        key = req.output_key or f"jobs/{req.job_id}/animations/anim_{uuid.uuid4()}.mp4"
+        key = req.output_key or f"{req.job_id}/video-generator/animations/anim_{uuid.uuid4()}.mp4"
         result_url = await upload_video(video_data, key)
 
         duration = time.time() - start_time

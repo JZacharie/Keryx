@@ -98,8 +98,8 @@ async def load_models():
 
         if DEVICE == "cuda":
             logger.info("Enabling maximum VRAM optimizations...")
-            # Sequential CPU offload is more aggressive than model offload
-            new_pipe.enable_sequential_cpu_offload()
+            # model_cpu_offload is much faster than sequential for 16GB VRAM
+            new_pipe.enable_model_cpu_offload()
             new_pipe.enable_attention_slicing()
             new_pipe.enable_vae_slicing()
             new_pipe.enable_vae_tiling()
@@ -345,6 +345,7 @@ class InpaintRequest(BaseModel):
 
 class CleanRequest(BaseModel):
     image_url: str
+    job_id: str
     target_path: Optional[str] = None
 
 class VideoCleanRequest(BaseModel):
@@ -393,7 +394,7 @@ async def style_image(request: StylingRequest):
         # 4. Upload result
         if not request.target_path:
             filename = f"styled_{uuid_pkg.uuid4()}.jpg"
-            target_key = f"styled/{filename}"
+            target_key = f"{request.job_id}/diffusion-engine/styled/{filename}"
         else:
             target_key = request.target_path
 
@@ -430,7 +431,7 @@ async def clean_watermark(request: CleanRequest):
             result_url = f"file://{request.target_path}"
             target_key = request.target_path
         else:
-            target_key = request.target_path or f"cleaned/{uuid_pkg.uuid4()}.png"
+            target_key = request.target_path or f"diffusion-engine/cleaned/{uuid_pkg.uuid4()}.png"
             result_url = await upload_image(cleaned_image, target_key)
 
         duration = time.time() - start_time
@@ -518,7 +519,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
             raise Exception("Fatal: Failed to recover any frames from video source.")
 
         # 3. STAGE 2: Upload ALL Raw Frames to S3 concurrently
-        logger.info(f"[{request_id}] Uploading {frame_count} raw frames to S3 (raw_frames/{request_id}/)...")
+        logger.info(f"[{request_id}] Uploading {frame_count} raw frames to S3 (diffusion-engine/raw_frames/{request_id}/)...")
         async def _upload_frame(i: int):
             filename = f"frame_{i:04d}.jpg"
             s3_key = f"raw_frames/{request_id}/{filename}"
@@ -572,7 +573,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
         # 7. Upload Final Result
         if not request.target_path:
             final_filename = f"video_cleaned_{uuid_pkg.uuid4()}.mp4"
-            target_key = f"cleaned_videos/{final_filename}"
+            target_key = f"diffusion-engine/cleaned_videos/{final_filename}"
         else:
             target_key = request.target_path
 
@@ -587,7 +588,7 @@ async def clean_video_watermark(request: VideoCleanRequest):
             "url": result_url,
             "frames_processed": frame_count,
             "duration": f"{duration:.2f}s",
-            "raw_frames_s3": f"raw_frames/{request_id}/"
+            "raw_frames_s3": f"diffusion-engine/raw_frames/{request_id}/"
         }
 
     except Exception as e:
@@ -610,7 +611,7 @@ async def remove_background_endpoint(request: RemoveBgRequest):
         init_image = await download_image(request.image_url)
         result_image = await asyncio.to_thread(remove_background, init_image)
 
-        target_key = request.target_path or f"nobg/{uuid_pkg.uuid4()}.png"
+        target_key = request.target_path or f"diffusion-engine/nobg/{uuid_pkg.uuid4()}.png"
         if target_key.startswith("/"):
             os.makedirs(os.path.dirname(target_key), exist_ok=True)
             result_image.save(target_key, format="PNG")
@@ -679,7 +680,7 @@ async def inpaint_image(request: InpaintRequest):
         # 4. Upload result
         if not request.target_path:
             filename = f"inpainted_{uuid_pkg.uuid4()}.jpg"
-            target_key = f"inpainted/{filename}"
+            target_key = f"diffusion-engine/inpainted/{filename}"
         else:
             target_key = request.target_path
 

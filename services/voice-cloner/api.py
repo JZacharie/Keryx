@@ -113,7 +113,7 @@ async def clone_voice(req: CloneRequest):
         )
 
         # 3. Upload to S3
-        key = req.output_key or f"jobs/{req.job_id}/audio/clone_{uuid.uuid4()}.wav"
+        key = req.output_key or f"{req.job_id}/voice-cloner/audio/clone_{uuid.uuid4()}.wav"
         async with _s3_client() as s3:
             await s3.upload_file(out_path, S3_BUCKET, key, ExtraArgs={"ContentType": "audio/wav"})
         
