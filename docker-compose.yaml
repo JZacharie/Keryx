@@ -253,9 +253,11 @@ services:
   frontend:
     build:
       context: ./services/frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:3000
     container_name: keryx-frontend
     ports:
-      - "3001:3000"
+      - "8000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:3000
     networks:
