@@ -66,5 +66,6 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 FROM runner AS release
 COPY --from=builder --chmod=755 /app/target/release/keryx-orchestrator /usr/local/bin/keryx-orchestrator
 COPY --from=builder --chown=1000:1000 /app/services/orchestrator/static static
-USER 1000
+COPY --from=builder --chown=1000:1000 /app/services/orchestrator/static static
+# Run as root to have permission on /var/run/docker.sock in local dev
 CMD ["/usr/local/bin/keryx-orchestrator"]

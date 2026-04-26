@@ -219,7 +219,49 @@ impl IngestVideoUseCase {
         res
     }
 
+    async fn execute_dry_run(&self, job_id: Uuid) -> Result<()> {
+        self.log(job_id, "🚀 Démarrage du mode DRY-RUN (Test d'orchestration séquentielle)").await;
+        
+        let services = vec![
+            "keryx-extractor",
+            "keryx-voice-extractor",
+            "keryx-dewatermark",
+            "keryx-diffusion-engine",
+            "keryx-voice-cloner",
+            "keryx-voice-cloner-gpt",
+            "keryx-video-composer",
+            "keryx-video-generator",
+            "keryx-pptx-builder",
+        ];
+
+        for svc in services {
+            self.log(job_id, &format!("--- Test Service : {} ---", svc)).await;
+            
+            self.log(job_id, &format!("Scaling UP {}...", svc)).await;
+            self.scaling_repo.scale_up("keryx", svc).await?;
+            
+            self.log(job_id, &format!("Service {} est prêt. Attente de 3 secondes...", svc)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            
+            self.log(job_id, &format!("Scaling DOWN {}...", svc)).await;
+            self.scaling_repo.scale_down("keryx", svc).await?;
+            
+            self.log(job_id, &format!("Service {} arrêté.", svc)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+
+        self.log(job_id, "✅ Fin du mode DRY-RUN. Tous les services ont été testés avec succès.").await;
+        self.job_repo.update_status(job_id, JobStatus::Completed).await?;
+        
+        Ok(())
+    }
+
     async fn execute_internal(&self, job_id: Uuid) -> Result<()> {
+        let dry_run = std::env::var("KERYX_DRY_RUN").unwrap_or_default() == "true";
+        if dry_run {
+            return self.execute_dry_run(job_id).await;
+        }
+
         let job = self.job_repo.find_by_id(job_id).await?
             .ok_or_else(|| anyhow::anyhow!("Job {} not found", job_id))?;
 

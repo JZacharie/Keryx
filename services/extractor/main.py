@@ -133,8 +133,24 @@ async def extract(req: ExtractRequest):
 
     tmp_dir = tempfile.mkdtemp(prefix=f"keryx_{request_id}_")
     try:
-        # -- 1. Metadata Pre-extraction ----------------------------
-        logger.info(f"[{request_id}] Fetching metadata...")
+        # Check for cookies file
+        cookies_file = os.getenv("YT_COOKIES_FILE", "/app/config/cookies.txt")
+        cookies_arg = []
+        if os.path.exists(cookies_file):
+            logger.info(f"[{request_id}] Using cookies from {cookies_file}")
+            cookies_arg = ["--cookies", cookies_file]
+        else:
+            logger.warning(f"[{request_id}] No cookies file found at {cookies_file}. This may lead to bot detection.")
+
+        # YouTube bypass tokens
+        po_token = os.getenv("YT_PO_TOKEN")
+        visitor_data = os.getenv("YT_VISITOR_DATA")
+        
+        yt_args = ["youtube:player-client=android,ios,web"]
+        if po_token and visitor_data:
+            logger.info(f"[{request_id}] Using PO Token and Visitor Data for YouTube bypass")
+            yt_args[0] += f";po_token={po_token};visitor_data={visitor_data}"
+
         meta_cmd = [
             "yt-dlp",
             "--no-playlist",
@@ -143,7 +159,8 @@ async def extract(req: ExtractRequest):
             "--no-check-certificate",
             "--js-runtimes", "nodejs",
             "--ignore-config",
-            "--extractor-args", "youtube:player-client=android",
+            "--extractor-args", *yt_args,
+            *cookies_arg,
             req.url
         ]
         meta_output = await run_command(meta_cmd, request_id, "yt-dlp-metadata")
@@ -165,8 +182,9 @@ async def extract(req: ExtractRequest):
             "--output", video_path,
             "--no-check-certificate",
             "--js-runtimes", "nodejs",
-            "--extractor-args", "youtube:player-client=android",
+            "--extractor-args", "youtube:player-client=android,ios,web",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            *cookies_arg,
             req.url,
         ]
         await run_command(ytdlp_cmd, request_id, "yt-dlp-download")
@@ -224,5 +242,6 @@ if __name__ == "__main__":
     import uvicorn
     # Filter out health check access logs from uvicorn
     logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
-    # Use standard uvicorn worker for development
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    # Use PORT from env if available
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

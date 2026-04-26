@@ -10,6 +10,7 @@ REF_TEXT = "Aujourd'hui, j'explore de nouveaux horizons avec l'intelligence arti
 REF_LANG = "fr"
 
 def run_api():
+    port = os.getenv("PORT", "9880")
     cmd = [
         "python", "api.py",
         "-s", SOVITS_WEIGHTS,
@@ -18,9 +19,9 @@ def run_api():
         "-dt", REF_TEXT,
         "-dl", REF_LANG,
         "-a", "0.0.0.0",
-        "-p", "9880"
+        "-p", port
     ]
-    print(f"Launching GPT-SoVITS API v2 with weights: {SOVITS_WEIGHTS}")
+    print(f"Launching GPT-SoVITS API v2 with weights: {SOVITS_WEIGHTS} on port {port}")
     subprocess.run(cmd, check=True)
 
 if __name__ == "__main__":
