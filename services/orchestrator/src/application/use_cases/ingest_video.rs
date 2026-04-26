@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::io::Write;
 use uuid::Uuid;
 use anyhow::Result;
 use keryx_core::domain::ports::job_repository::JobRepository;
