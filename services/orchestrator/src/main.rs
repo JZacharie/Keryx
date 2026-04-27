@@ -11,9 +11,11 @@ use tower_http::trace::TraceLayer;
 
 use keryx_orchestrator::{
     state::AppState,
-    interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler, get_job_tracking_handler, restart_job_handler},
+    interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler, get_job_tracking_handler, restart_job_handler, voices_lab_test_handler},
     interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
+    interfaces::http::health_handlers::cluster_health_handler,
     application::use_cases::ingest_video::IngestVideoUseCase,
+    application::use_cases::voices_lab::VoicesLabUseCase,
     infrastructure::{
         auth_middleware::{require_api_key, AuthState},
         repositories::{
@@ -27,6 +29,7 @@ use keryx_orchestrator::{
             extractor::ExtractorClient,
             dewatermark::DewatermarkClient,
             voice_extractor::VoiceExtractorClient,
+            texts_translation::TextsTranslationClient,
             voice_cloner::VoiceClonerClient,
             video_composer::VideoComposerClient,
             video_generator::VideoGeneratorClient,
@@ -116,9 +119,11 @@ async fn run() -> anyhow::Result<()> {
     let extractor_url = std::env::var("EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-extractor:8000".to_string());
     let dewatermark_url = std::env::var("DEWATERMARK_URL").unwrap_or_else(|_| "http://keryx-dewatermark:8000".to_string());
     let voice_extractor_url = std::env::var("VOICE_EXTRACTOR_URL").unwrap_or_else(|_| "http://keryx-voice-extractor:8000".to_string());
+    let texts_translation_url = std::env::var("TEXTS_TRANSLATION_URL").unwrap_or_else(|_| "http://keryx-texts-translation:8000".to_string());
     let video_composer_url = std::env::var("VIDEO_COMPOSER_URL").unwrap_or_else(|_| "http://keryx-video-composer:8000".to_string());
+    let voices_composer_url = std::env::var("VOICES_COMPOSER_URL").unwrap_or_else(|_| "http://voices-composer:8000".to_string());
     let video_generator_url = std::env::var("VIDEO_GENERATOR_URL").unwrap_or_else(|_| "http://keryx-video-generator:8000".to_string());
-    let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voice-cloner:8000".to_string());
+    let voice_cloner_url = std::env::var("VOICE_CLONER_URL").unwrap_or_else(|_| "http://keryx-voices-cloner:8000".to_string());
 
     let slack_webhook = std::env::var("SLACK_WEBHOOK_URL").unwrap_or_else(|_| "https://hooks.slack.com/services/T01234567/B01234567/XXXXXXXX".to_string());
 
@@ -150,37 +155,52 @@ async fn run() -> anyhow::Result<()> {
     let extractor = Arc::new(ExtractorClient::new(extractor_url));
     let dewatermark = Arc::new(DewatermarkClient::new(dewatermark_url));
     let voice_extractor = Arc::new(VoiceExtractorClient::new(voice_extractor_url));
+    let texts_translation = Arc::new(TextsTranslationClient::new(texts_translation_url));
     let voice_cloner = Arc::new(VoiceClonerClient::new(voice_cloner_url));
     let video_composer = Arc::new(VideoComposerClient::new(video_composer_url));
+    let voices_composer = Arc::new(VideoComposerClient::new(voices_composer_url));
     let video_generator = Arc::new(VideoGeneratorClient::new(video_generator_url));
     let diffusion_engine = Arc::new(DiffusionEngineClient::new(std::env::var("DIFFUSION_URL").unwrap_or_else(|_| "http://keryx-diffusion-engine:8000".to_string())));
     let pptx_builder = Arc::new(PptxBuilderClient::new(std::env::var("PPTX_URL").unwrap_or_else(|_| "http://keryx-pptx-builder:8000".to_string())));
 
-    // Initialize use case
+    // Initialize use cases
     let ingest_video_use_case = Arc::new(IngestVideoUseCase::new(
-        job_repo,
-        storage_repo,
-        scaling_repo,
-        notification_repo,
+        job_repo.clone(),
+        storage_repo.clone(),
+        scaling_repo.clone(),
+        notification_repo.clone(),
         extractor.clone(),
         dewatermark.clone(),
         voice_extractor.clone(),
+        texts_translation.clone(),
         voice_cloner.clone(),
         video_composer.clone(),
+        voices_composer.clone(),
         video_generator.clone(),
         diffusion_engine.clone(),
         pptx_builder.clone(),
         Arc::new(tokio::sync::Semaphore::new(1)),
     ));
 
+    let voices_lab_use_case = Arc::new(VoicesLabUseCase::new(
+        scaling_repo,
+        voice_extractor.clone(),
+        texts_translation.clone(),
+        voice_cloner.clone(),
+        voices_composer.clone(),
+    ));
+
     // Initialize state
     let state = AppState {
         ingest_video_use_case,
+        voices_lab_use_case,
         extractor,
         dewatermark,
         voice_extractor,
+        texts_translation,
         voice_cloner,
         video_composer,
+        voices_composer,
         video_generator,
         diffusion_engine,
         pptx_builder,
@@ -209,6 +229,7 @@ async fn run() -> anyhow::Result<()> {
 
     let public_routes = Router::new()
         .route("/health", get(|| async { "OK" }))
+        .route("/health/cluster", get(cluster_health_handler))
         .route("/api/jobs", get(list_jobs_handler))
         .route("/api/jobs/:id", get(get_job_handler))
         .route("/api/jobs/:id/tracking", get(get_job_tracking_handler))
@@ -218,6 +239,7 @@ async fn run() -> anyhow::Result<()> {
     let protected_routes = Router::new()
         .route("/api/jobs", post(create_job_handler))
         .route("/api/jobs/:id/restart/:step", post(restart_job_handler))
+        .route("/api/voices-lab/test", post(voices_lab_test_handler))
         .layer(middleware::from_fn_with_state(auth_state, require_api_key));
 
     let app = Router::new()

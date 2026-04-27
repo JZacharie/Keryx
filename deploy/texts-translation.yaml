@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keryx-texts-translation
+  labels:
+    app: keryx-texts-translation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keryx-texts-translation
+  template:
+    metadata:
+      labels:
+        app: keryx-texts-translation
+    spec:
+      containers:
+      - name: keryx-texts-translation
+        image: ghcr.io/jzacharie/keryx-texts-translation:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: OLLAMA_URL
+          value: "http://ollama.ollama.svc.cluster.local:11434"
+        - name: TRANSLATOR_BACKEND
+          value: "ollama"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keryx-texts-translation
+spec:
+  selector:
+    app: keryx-texts-translation
+  ports:
+  - port: 8000
+    targetPort: 8000

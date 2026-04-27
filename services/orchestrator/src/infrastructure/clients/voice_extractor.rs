@@ -72,21 +72,22 @@ impl VoiceExtractorClient {
             language,
         };
 
-        let resp = inject_trace_context(
-            self.client
-                .post(format!("{}/transcribe", self.base_url))
-                .json(&req)
-        )
-            .send()
-            .await?;
+        super::execute_with_retry(|| async {
+            let resp = inject_trace_context(
+                self.client
+                    .post(format!("{}/transcribe", self.base_url))
+                    .json(&req)
+            )
+                .send()
+                .await?;
 
+            if !resp.status().is_success() {
+                let error = resp.text().await?;
+                return Err(anyhow::anyhow!("Voice Extractor error: {}", error));
+            }
 
-        if !resp.status().is_success() {
-            let error = resp.text().await?;
-            return Err(anyhow::anyhow!("Voice Extractor error: {}", error));
-        }
-
-        Ok(resp.json().await?)
+            Ok(resp.json().await?)
+        }, 3).await
     }
 
     pub async fn translate(&self, segments: Vec<Segment>, target_lang: &str, job_id: &str) -> Result<TranslateResponse> {

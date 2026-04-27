@@ -136,9 +136,11 @@ async def extract(req: ExtractRequest):
         # Check for cookies file
         cookies_file = os.getenv("YT_COOKIES_FILE", "/app/config/cookies.txt")
         cookies_arg = []
-        if os.path.exists(cookies_file):
+        if os.path.exists(cookies_file) and os.path.getsize(cookies_file) > 0:
             logger.info(f"[{request_id}] Using cookies from {cookies_file}")
             cookies_arg = ["--cookies", cookies_file]
+        elif os.path.exists(cookies_file):
+            logger.info(f"[{request_id}] Cookies file exists but is empty. Skipping.")
         else:
             logger.warning(f"[{request_id}] No cookies file found at {cookies_file}. This may lead to bot detection.")
 

@@ -13,7 +13,7 @@ aioboto3==13.4.0
 httpx==0.28.1
 pydantic==2.13.3
 huggingface-hub==0.36.2
-opencv-python-headless<4.11
+opencv-python-headless<4.14
 numpy<2
 openai-whisper
 edge-tts

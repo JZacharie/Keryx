@@ -35,18 +35,7 @@ impl ScalingRepository for ComposeScalingRepository {
             }
         }
         
-        let port = match deployment_name {
-            "keryx-extractor" => 8001,
-            "keryx-dewatermark" => 8002,
-            "keryx-voice-extractor" => 8003,
-            "keryx-video-composer" => 8004,
-            "keryx-video-generator" => 8005,
-            "keryx-voice-cloner" => 8006,
-            "keryx-voice-cloner-gpt" => 8007,
-            "keryx-diffusion-engine" => 8008,
-            "keryx-pptx-builder" => 8009,
-            _ => 8000,
-        };
+        let port = 8000;
  
         tracing::info!("[DOCKER] Waiting for service {} on port {}...", deployment_name, port);
         self.wait_for_service_ping(namespace, deployment_name, port).await

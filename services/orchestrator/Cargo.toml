@@ -2,7 +2,7 @@
 name = "keryx-orchestrator"
 version = "0.5.0"
 authors = ["Joseph ZACHARIE <joseph@example.com>"]
-edition = "2024"
+edition = "2021"
 
 [lib]
 name = "keryx_orchestrator"

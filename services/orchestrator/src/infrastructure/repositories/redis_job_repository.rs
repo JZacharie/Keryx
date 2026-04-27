@@ -41,6 +41,12 @@ impl JobRepository for RedisJobRepository {
         self.save(&job).await
     }
 
+    async fn update_progress(&self, id: Uuid, progress: f32) -> Result<()> {
+        let mut job = self.find_by_id(id).await?.context("Job not found")?;
+        job.progress = progress;
+        self.save(&job).await
+    }
+
     async fn append_log(&self, id: Uuid, message: &str) -> Result<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = format!("log:{}", id);

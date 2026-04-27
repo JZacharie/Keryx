@@ -31,6 +31,7 @@ pub async fn create_job_handler(
         source_url: payload.video_url,
         target_langs: payload.target_langs,
         status: JobStatus::Pending,
+        progress: 0.0,
         style_config: StyleConfig {
             prompt: payload.prompt.unwrap_or_else(|| "Modern professional SaaS presentation, clean corporate layout, high fidelity, sharp focus".to_string()),
             lora: payload.lora,
@@ -108,6 +109,27 @@ pub async fn list_jobs_handler(
 ) -> impl IntoResponse {
     match state.ingest_video_use_case.get_job_repo().list(100).await {
         Ok(jobs) => Json(jobs).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct VoicesLabTestRequest {
+    pub audio_url: String,
+    pub target_lang: String,
+}
+
+#[derive(Serialize)]
+pub struct VoicesLabTestResponse {
+    pub result_url: String,
+}
+
+pub async fn voices_lab_test_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<VoicesLabTestRequest>,
+) -> impl IntoResponse {
+    match state.voices_lab_use_case.execute_test(&payload.audio_url, &payload.target_lang).await {
+        Ok(result_url) => (axum::http::StatusCode::OK, Json(VoicesLabTestResponse { result_url })).into_response(),
         Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
     }
 }

@@ -35,6 +35,20 @@ spec:
               value: "keryx"
             - name: RUST_LOG
               value: "info"
+            - name: PORT
+              value: "8010"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 3
+            periodSeconds: 10
           resources:
             limits:
               cpu: 1000m
