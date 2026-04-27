@@ -1,4 +1,5 @@
 target/
+!target/release/keryx-orchestrator
 .git/
 *.mp4
 *.wav
