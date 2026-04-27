@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { 
   Mic, 
-  Translate, 
+  Languages, 
   Volume2, 
   Play, 
   Wand2, 
@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   FileAudio,
-  ArrowRight
+  ArrowRight,
+  Activity
 } from "lucide-react";
 
 export default function VoicesLabPage() {
@@ -130,7 +131,7 @@ export default function VoicesLabPage() {
             <div className="space-y-3">
               {[
                 { icon: Mic, label: "Whisper Medium STT", color: "text-blue-400" },
-                { icon: Translate, label: "Ollama LLM Translation", color: "text-purple-400" },
+                { icon: Languages, label: "Ollama LLM Translation", color: "text-purple-400" },
                 { icon: Volume2, label: "Coqui Voice Cloning", color: "text-emerald-400" },
                 { icon: Wand2, label: "Audio Concat & Mixing", color: "text-orange-400" },
               ].map((f, i) => (

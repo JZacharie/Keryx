@@ -2,9 +2,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use anyhow::Result;
 use keryx_core::domain::ports::job_repository::JobRepository;
-use keryx_core::domain::ports::storage_repository::StorageRepository;
 use keryx_core::domain::ports::scaling_repository::ScalingRepository;
-use keryx_core::domain::ports::notification_repository::NotificationRepository;
 
 use crate::infrastructure::clients::voice_extractor::{VoiceExtractorClient, Segment};
 use crate::infrastructure::clients::texts_translation::TextsTranslationClient;
