@@ -710,13 +710,24 @@ jobs:
       #       kubectl rollout restart deployment video-generator -n keryx
       #     fi
 
-      - name: Quick Restart Pods
+      - name: Restart Core and Scale AI Services to Zero
         run: |
-          # Restart frontend and orchestrator pods by deletion (triggers recreation)
-          # We target the components to ensure all pods associated with these deployments are refreshed
+          # Restart core components by deletion
           kubectl delete pod -l app.kubernetes.io/component=frontend -n keryx --wait=false || true
           kubectl delete pod -l app.kubernetes.io/component=orchestrator -n keryx --wait=false || true
-          kubectl delete pod -l app=keryx-texts-translation -n keryx --wait=false || true
+          
+          # Scale down all AI microservices to 0 so they pull the new image on the next job
+          kubectl scale deployment keryx-extractor --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-dewatermark --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-voice-extractor --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-texts-translation --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-voices-cloner --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-voice-cloner-gpt --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-video-composer --replicas=0 -n keryx || true
+          kubectl scale deployment voices-composer --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-video-generator --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-diffusion-engine --replicas=0 -n keryx || true
+          kubectl scale deployment keryx-pptx-builder --replicas=0 -n keryx || true
 
       - name: Notify Slack
         if: success()
