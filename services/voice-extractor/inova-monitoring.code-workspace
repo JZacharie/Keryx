@@ -1,0 +1,26 @@
+{
+	"folders": [
+		{
+			"path": "../../../Sanofi/inova-monitoring"
+		},
+		{
+			"path": "../../../Sanofi/inova-nextgen"
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../jo3"
+		},
+		{
+			"path": "../../../Kusanagi"
+		},
+		{
+			"path": "../../../helmscharts"
+		},
+		{
+			"path": "../../../Kryptos"
+		}
+	],
+	"settings": {}
+}
