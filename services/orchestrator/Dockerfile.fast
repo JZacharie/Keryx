@@ -1,0 +1,34 @@
+# --- Minimal runtime image for fast CI ---
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN sed -i 's/archive.ubuntu.com/mirrors.kernel.org/g' /etc/apt/sources.list && \
+    sed -i 's/security.ubuntu.com/mirrors.kernel.org/g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Ensure keryx user exists
+RUN if getent passwd 1000; then \
+    existing_user=$(getent passwd 1000 | cut -d: -f1); \
+    usermod -l keryx "$existing_user"; \
+    groupmod -n keryx "$existing_user" 2>/dev/null || true; \
+    else \
+    groupadd -g 1000 keryx && \
+    useradd -r -u 1000 -g keryx -s /bin/false keryx; \
+    fi && \
+    chown -R 1000:1000 /app
+
+# Copy the pre-built binary from the host
+COPY target/release/keryx-orchestrator /usr/local/bin/keryx-orchestrator
+COPY services/orchestrator/static static
+
+ENV RUST_LOG=info
+EXPOSE 3000
+
+CMD ["/usr/local/bin/keryx-orchestrator"]

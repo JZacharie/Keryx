@@ -8,6 +8,7 @@ pub struct Job {
     pub source_url: String,
     pub target_langs: Vec<String>,
     pub status: JobStatus,
+    pub progress: f32,
     pub style_config: StyleConfig,
     pub assets_map: Vec<SlideAsset>,
 }

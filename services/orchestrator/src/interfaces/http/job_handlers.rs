@@ -31,6 +31,7 @@ pub async fn create_job_handler(
         source_url: payload.video_url,
         target_langs: payload.target_langs,
         status: JobStatus::Pending,
+        progress: 0.0,
         style_config: StyleConfig {
             prompt: payload.prompt.unwrap_or_else(|| "Modern professional SaaS presentation, clean corporate layout, high fidelity, sharp focus".to_string()),
             lora: payload.lora,

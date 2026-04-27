@@ -26,6 +26,18 @@ spec:
           value: "http://ollama.ollama.svc.cluster.local:11434"
         - name: TRANSLATOR_BACKEND
           value: "ollama"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 2
+          periodSeconds: 5
         resources:
           limits:
             cpu: 500m

@@ -47,12 +47,15 @@ impl TextsTranslationClient {
             job_id: job_id.to_string(),
         };
 
-        let resp = self.client.post(&url)
-            .json(&req)
-            .send()
-            .await?
-            .json::<TranslateResponse>()
-            .await?;
+        let resp = super::execute_with_retry(|| async {
+            let r = self.client.post(&url)
+                .json(&req)
+                .send()
+                .await?
+                .json::<TranslateResponse>()
+                .await?;
+            Ok(r)
+        }, 3).await?;
 
         Ok(resp.segments)
     }
@@ -64,12 +67,15 @@ impl TextsTranslationClient {
             job_id: job_id.to_string(),
         };
 
-        let resp = self.client.post(&url)
-            .json(&req)
-            .send()
-            .await?
-            .json::<RefineResponse>()
-            .await?;
+        let resp = super::execute_with_retry(|| async {
+            let r = self.client.post(&url)
+                .json(&req)
+                .send()
+                .await?
+                .json::<RefineResponse>()
+                .await?;
+            Ok(r)
+        }, 3).await?;
 
         Ok(resp.refined_text)
     }

@@ -13,6 +13,7 @@ use keryx_orchestrator::{
     state::AppState,
     interfaces::http::job_handlers::{create_job_handler, get_job_handler, list_jobs_handler, get_job_tracking_handler, restart_job_handler, voices_lab_test_handler},
     interfaces::http::log_handlers::{get_job_logs_sse_handler, get_job_logs_raw_handler},
+    interfaces::http::health_handlers::cluster_health_handler,
     application::use_cases::ingest_video::IngestVideoUseCase,
     application::use_cases::voices_lab::VoicesLabUseCase,
     infrastructure::{
@@ -182,7 +183,6 @@ async fn run() -> anyhow::Result<()> {
     ));
 
     let voices_lab_use_case = Arc::new(VoicesLabUseCase::new(
-        job_repo,
         scaling_repo,
         voice_extractor.clone(),
         texts_translation.clone(),
@@ -229,6 +229,7 @@ async fn run() -> anyhow::Result<()> {
 
     let public_routes = Router::new()
         .route("/health", get(|| async { "OK" }))
+        .route("/health/cluster", get(cluster_health_handler))
         .route("/api/jobs", get(list_jobs_handler))
         .route("/api/jobs/:id", get(get_job_handler))
         .route("/api/jobs/:id/tracking", get(get_job_tracking_handler))

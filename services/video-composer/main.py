@@ -30,7 +30,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.video_composer")
-logger = logging.getLogger("keryx.video_composer")
 logger.info(f"Starting {SERVICE_NAME} with LOG_LEVEL={LOG_LEVEL}")
 
 class HealthCheckFilter(logging.Filter):

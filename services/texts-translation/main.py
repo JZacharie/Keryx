@@ -9,6 +9,9 @@ import asyncio
 import logging
 import uuid
 import time
+import hashlib
+import json
+import aioboto3
 from typing import Optional, List
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -21,17 +24,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger("keryx.texts_translation")
 
-class HealthCheckFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        return "/health" not in record.getMessage()
-
-app = FastAPI(title="Keryx Texts Translation", version="1.0.0")
+app = FastAPI(title="Keryx Texts Translation", version="1.1.0")
 
 SERVICE_NAME = "keryx-texts-translation"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama.ollama.svc.cluster.local:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
-# TRANSLATOR_BACKEND: "ollama" (default) ou "google" (fallback)
 TRANSLATOR_BACKEND = os.getenv("TRANSLATOR_BACKEND", "ollama")
+
+# S3 Cache Config
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio.minio.svc.cluster.local:9000")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minioadmin")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minioadmin")
+S3_BUCKET = os.getenv("S3_BUCKET", "keryx-cache")
+USE_CACHE = os.getenv("USE_CACHE", "true").lower() == "true"
+
+session = aioboto3.Session()
+
+def get_cache_key(text: str, target_lang: str, mode: str) -> str:
+    hash_input = f"{mode}:{target_lang}:{text}"
+    return hashlib.sha256(hash_input.encode()).hexdigest()
+
+async def get_from_cache(key: str) -> Optional[str]:
+    if not USE_CACHE: return None
+    try:
+        async with session.client("s3", endpoint_url=S3_ENDPOINT,
+                                  aws_access_key_id=S3_ACCESS_KEY,
+                                  aws_secret_access_key=S3_SECRET_KEY,
+                                  verify=False) as s3:
+            resp = await s3.get_object(Bucket=S3_BUCKET, Key=f"trans/{key}")
+            content = await resp["Body"].read()
+            return content.decode()
+    except Exception:
+        return None
+
+async def save_to_cache(key: str, value: str):
+    if not USE_CACHE: return
+    try:
+        async with session.client("s3", endpoint_url=S3_ENDPOINT,
+                                  aws_access_key_id=S3_ACCESS_KEY,
+                                  aws_secret_access_key=S3_SECRET_KEY,
+                                  verify=False) as s3:
+            await s3.put_object(Bucket=S3_BUCKET, Key=f"trans/{key}", Body=value.encode())
+    except Exception as e:
+        logger.warning(f"Failed to save to cache: {e}")
 
 # -- Models --
 
@@ -141,8 +176,23 @@ async def translate(req: TranslateRequest):
     semaphore = asyncio.Semaphore(5)
 
     async def translate_segment(seg: Segment) -> Segment:
+        if not seg.text.strip():
+            return seg
+        
+        cache_key = get_cache_key(seg.text, req.target_lang, "translate")
+        cached = await get_from_cache(cache_key)
+        if cached:
+            logger.debug(f"[{request_id}] Cache hit for segment")
+            return Segment(
+                start=seg.start,
+                end=seg.end,
+                text=seg.text,
+                translated=cached,
+            )
+
         async with semaphore:
             translated = await translate_text(seg.text, req.target_lang)
+            await save_to_cache(cache_key, translated)
             return Segment(
                 start=seg.start,
                 end=seg.end,
@@ -159,8 +209,19 @@ async def translate(req: TranslateRequest):
 async def refine(req: RefineRequest):
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"[{request_id}] Refining text for job={req.job_id}")
+    
+    if not req.text.strip():
+        return RefineResponse(status="success", refined_text="")
+
+    cache_key = get_cache_key(req.text, "orig", "refine")
+    cached = await get_from_cache(cache_key)
+    if cached:
+        logger.info(f"[{request_id}] Cache hit for refinement")
+        return RefineResponse(status="success", refined_text=cached)
+
     start_time = time.time()
     refined = await refine_text(req.text)
+    await save_to_cache(cache_key, refined)
     elapsed = time.time() - start_time
     logger.info(f"[{request_id}] Refinement done in {elapsed:.1f}s")
     return RefineResponse(status="success", refined_text=refined)

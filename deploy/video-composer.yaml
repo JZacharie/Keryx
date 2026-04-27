@@ -28,6 +28,12 @@ spec:
           ports:
             - containerPort: 8000
               protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
           readinessProbe:
             httpGet:
               path: /health

@@ -40,6 +40,7 @@ jobs:
       extractor: ${{ steps.filter.outputs.extractor }}
       dewatermark: ${{ steps.filter.outputs.dewatermark }}
       voice_extractor: ${{ steps.filter.outputs.voice_extractor }}
+      texts_translation: ${{ steps.filter.outputs.texts_translation }}
       video_composer: ${{ steps.filter.outputs.video_composer }}
     steps:
       - uses: actions/checkout@v6
@@ -72,6 +73,8 @@ jobs:
               - 'services/dewatermark/**'
             voice_extractor:
               - 'services/voice-extractor/**'
+            texts_translation:
+              - 'services/texts-translation/**'
             video_composer:
               - 'services/video-composer/**'
 
@@ -108,6 +111,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev clang mold
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "orchestrator-build"
+
+      - name: Build binary
+        run: cargo build --release --bin keryx-orchestrator
+        env:
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -130,17 +151,14 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value={{date 'YYYYMMDD'}}
 
-      - name: Build and push Docker image (full in-Docker build)
+      - name: Build and push Docker image (Fast Runner Build)
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: services/orchestrator/Dockerfile
-          target: release
+          file: services/orchestrator/Dockerfile.fast
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   build-diffusion:
     name: 🎨 Build Diffusion Image
@@ -257,7 +275,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/jzacharie/keryx-voice-cloner
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-voices-cloner
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -578,7 +596,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/jzacharie/keryx-video-composer
+          images: ${{ env.REGISTRY }}/jzacharie/voices-composer
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -594,13 +612,53 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  build-texts-translation:
+    name: 🌐 Build Texts Translation Image
+    needs: changes
+    if: needs.changes.outputs.texts_translation == 'true' || github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/jzacharie/keryx-texts-translation
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD'}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./services/texts-translation
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # ============================================================================
   # Phase 4: Continuous Deployment (CD)
   # ============================================================================
   deploy:
     name: 🚀 Deploy to Cluster
-    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-video-generator, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-video-composer]
-    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.video-generator == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
+    needs: [changes, build-orchestrator, build-diffusion, build-pptx, build-voice-cloner, build-video-processor, build-voice-cloner-gpt, build-video-generator, build-frontend, build-extractor, build-dewatermark, build-voice-extractor, build-texts-translation, build-video-composer]
+    if: always() && (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') && (needs.changes.outputs.orchestrator == 'true' || needs.changes.outputs.diffusion == 'true' || needs.changes.outputs.pptx == 'true' || needs.changes.outputs.voice_cloner == 'true' || needs.changes.outputs.video_processor == 'true' || needs.changes.outputs.voice_cloner_gpt == 'true' || needs.changes.outputs.video-generator == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.extractor == 'true' || needs.changes.outputs.dewatermark == 'true' || needs.changes.outputs.voice_extractor == 'true' || needs.changes.outputs.texts_translation == 'true' || needs.changes.outputs.video_composer == 'true' || github.event.inputs.force_build == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Configure kubectl
@@ -652,6 +710,7 @@ jobs:
           # We target the components to ensure all pods associated with these deployments are refreshed
           kubectl delete pod -l app.kubernetes.io/component=frontend -n keryx --wait=false || true
           kubectl delete pod -l app.kubernetes.io/component=orchestrator -n keryx --wait=false || true
+          kubectl delete pod -l app=keryx-texts-translation -n keryx --wait=false || true
 
       - name: Notify Slack
         if: success()

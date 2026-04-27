@@ -44,6 +44,18 @@ spec:
           value: "all"
         - name: NVIDIA_DRIVER_CAPABILITIES
           value: "compute,utility"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9880
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9880
+          initialDelaySeconds: 10
+          periodSeconds: 10
         resources:
           limits:
             nvidia.com/gpu: 1
