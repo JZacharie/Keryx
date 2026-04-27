@@ -112,4 +112,25 @@ pub async fn list_jobs_handler(
     }
 }
 
+#[derive(Deserialize)]
+pub struct VoicesLabTestRequest {
+    pub audio_url: String,
+    pub target_lang: String,
+}
+
+#[derive(Serialize)]
+pub struct VoicesLabTestResponse {
+    pub result_url: String,
+}
+
+pub async fn voices_lab_test_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<VoicesLabTestRequest>,
+) -> impl IntoResponse {
+    match state.voices_lab_use_case.execute_test(&payload.audio_url, &payload.target_lang).await {
+        Ok(result_url) => (axum::http::StatusCode::OK, Json(VoicesLabTestResponse { result_url })).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
 use serde_json::json;

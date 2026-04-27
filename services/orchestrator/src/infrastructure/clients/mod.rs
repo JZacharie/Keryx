@@ -1,3 +1,4 @@
+pub mod texts_translation;
 pub mod extractor;
 pub mod dewatermark;
 pub mod voice_extractor;

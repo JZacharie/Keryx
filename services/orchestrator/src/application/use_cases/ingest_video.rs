@@ -11,6 +11,7 @@ use keryx_core::domain::entities::job::JobStatus;
 use crate::infrastructure::clients::extractor::ExtractorClient;
 use crate::infrastructure::clients::dewatermark::DewatermarkClient;
 use crate::infrastructure::clients::voice_extractor::{VoiceExtractorClient, Segment};
+use crate::infrastructure::clients::texts_translation::TextsTranslationClient;
 use crate::infrastructure::clients::voice_cloner::VoiceClonerClient;
 use crate::infrastructure::clients::video_composer::{VideoComposerClient, SlideInput as ComposerSlideInput};
 use crate::infrastructure::clients::video_generator::VideoGeneratorClient;
@@ -29,8 +30,10 @@ pub struct IngestVideoUseCase {
     extractor: Arc<ExtractorClient>,
     dewatermark: Arc<DewatermarkClient>,
     voice_extractor: Arc<VoiceExtractorClient>,
+    texts_translation: Arc<TextsTranslationClient>,
     voice_cloner: Arc<VoiceClonerClient>,
     video_composer: Arc<VideoComposerClient>,
+    voices_composer: Arc<VideoComposerClient>,
     video_generator: Arc<VideoGeneratorClient>,
     diffusion_engine: Arc<DiffusionEngineClient>,
     pptx_builder: Arc<PptxBuilderClient>,
@@ -46,8 +49,10 @@ impl IngestVideoUseCase {
         extractor: Arc<ExtractorClient>,
         dewatermark: Arc<DewatermarkClient>,
         voice_extractor: Arc<VoiceExtractorClient>,
+        texts_translation: Arc<TextsTranslationClient>,
         voice_cloner: Arc<VoiceClonerClient>,
         video_composer: Arc<VideoComposerClient>,
+        voices_composer: Arc<VideoComposerClient>,
         video_generator: Arc<VideoGeneratorClient>,
         diffusion_engine: Arc<DiffusionEngineClient>,
         pptx_builder: Arc<PptxBuilderClient>,
@@ -61,8 +66,10 @@ impl IngestVideoUseCase {
             extractor,
             dewatermark,
             voice_extractor,
+            texts_translation,
             voice_cloner,
             video_composer,
+            voices_composer,
             video_generator,
             diffusion_engine,
             pptx_builder,
@@ -201,9 +208,11 @@ impl IngestVideoUseCase {
                 "keryx-extractor",
                 "keryx-dewatermark",
                 "keryx-voice-extractor",
-                "keryx-voice-cloner",
+                "keryx-texts-translation",
+                "keryx-voices-cloner",
                 "keryx-voice-cloner-gpt",
                 "keryx-video-composer",
+                "voices-composer",
                 "keryx-video-generator",
                 "keryx-diffusion-engine",
                 "keryx-pptx-builder",
@@ -444,7 +453,7 @@ impl IngestVideoUseCase {
         if tracking.refined_texts.is_empty() && !tracking.cleaned_slides.is_empty() {
             let _perm = self.gpu_semaphore.acquire().await?;
             self.log(job_id, "Phase 4 : Fluidification du texte (Original Lang)...").await;
-            self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
+            self.scaling_repo.scale_up("keryx", "keryx-texts-translation").await?;
             
             let mut refined_list = Vec::new();
             for i in 0..tracking.cleaned_slides.len() {
@@ -467,12 +476,12 @@ impl IngestVideoUseCase {
                 }
 
                 self.log(job_id, &format!("Fluidification slide {}/{}...", i+1, tracking.cleaned_slides.len())).await;
-                let refined_res = self.voice_extractor.refine(&slide_text, &job_id.to_string()).await?;
-                refined_list.push(refined_res.refined_text);
+                let refined_res = self.texts_translation.refine(&job_id.to_string(), &slide_text).await?;
+                refined_list.push(refined_res);
             }
             tracking.refined_texts = refined_list;
             self.save_tracking_data(&tracking).await?;
-            let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+            let _ = self.scaling_repo.scale_down("keryx", "keryx-texts-translation").await;
         }
 
         // 2. Traitement par Langue
@@ -483,7 +492,7 @@ impl IngestVideoUseCase {
             if !tracking.translations.contains_key(lang) {
                 let _perm = self.gpu_semaphore.acquire().await?;
                 self.log(job_id, &format!("Phase 4 : Traduction en {}...", lang)).await;
-                self.scaling_repo.scale_up("keryx", "keryx-voice-extractor").await?;
+                self.scaling_repo.scale_up("keryx", "keryx-texts-translation").await?;
                 
                 let mut lang_segments = Vec::new();
                 for (i, text) in tracking.refined_texts.iter().enumerate() {
@@ -502,21 +511,21 @@ impl IngestVideoUseCase {
                         text: text.clone(), 
                         translated: None 
                     };
-                    let res = self.voice_extractor.translate(vec![dummy], lang, &job_id.to_string()).await?;
-                    if let Some(s) = res.segments.first() {
+                    let res = self.texts_translation.translate(&job_id.to_string(), vec![dummy], lang).await?;
+                    if let Some(s) = res.first() {
                         lang_segments.push(s.clone());
                     }
                 }
                 tracking.translations.insert(lang.clone(), lang_segments);
                 self.save_tracking_data(&tracking).await?;
-                let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-extractor").await;
+                let _ = self.scaling_repo.scale_down("keryx", "keryx-texts-translation").await;
             }
 
             // Phase 5 : Clonage Vocal
             if !tracking.cloned_audios.contains_key(lang) {
                 let _perm = self.gpu_semaphore.acquire().await?;
                 self.log(job_id, &format!("Phase 5 : Clonage vocal en {}...", lang)).await;
-                self.scaling_repo.scale_up("keryx", "keryx-voice-cloner").await?;
+                self.scaling_repo.scale_up("keryx", "keryx-voices-cloner").await?;
                 
                 let mut lang_audios = Vec::new();
                 let mut lang_durations = Vec::new();
@@ -537,7 +546,7 @@ impl IngestVideoUseCase {
                 tracking.cloned_audios.insert(lang.clone(), lang_audios);
                 tracking.cloned_durations.insert(lang.clone(), lang_durations);
                 self.save_tracking_data(&tracking).await?;
-                let _ = self.scaling_repo.scale_down("keryx", "keryx-voice-cloner").await;
+                let _ = self.scaling_repo.scale_down("keryx", "keryx-voices-cloner").await;
             }
 
             // Phase 6 : Composition Finale (Audio + Vidéo)
@@ -548,7 +557,9 @@ impl IngestVideoUseCase {
                 
                 // Audio
                 let audios = tracking.cloned_audios.get(lang).unwrap();
-                let concat_res = self.video_composer.concat_audio(&job_id.to_string(), audios.clone()).await?;
+                self.scaling_repo.scale_up("keryx", "voices-composer").await?;
+                let concat_res = self.voices_composer.concat_audio(&job_id.to_string(), audios.clone()).await?;
+                let _ = self.scaling_repo.scale_down("keryx", "voices-composer").await;
                 tracking.final_audios.insert(lang.clone(), concat_res.url.clone());
 
                 // Vidéo

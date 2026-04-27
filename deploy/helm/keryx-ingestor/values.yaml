@@ -36,12 +36,17 @@ env:
   S3_BUCKET: "keryx-raw"
   S3_REGION: "eu-west-1"
   S3_ENDPOINT: "http://minio:9000"
-  EXTRACTOR_URL: "http://keryx-extractor:8010"
+  EXTRACTOR_URL: "http://keryx-extractor:8000"
   DEWATERMARK_URL: "http://keryx-dewatermark:8000"
   VOICE_EXTRACTOR_URL: "http://keryx-voice-extractor:8000"
+  TEXTS_TRANSLATION_URL: "http://keryx-texts-translation:8000"
   VIDEO_COMPOSER_URL: "http://keryx-video-composer:8000"
+  VOICES_COMPOSER_URL: "http://voices-composer:8000"
   VIDEO_GENERATOR_URL: "http://keryx-video-generator:8000"
-  VOICE_CLONER_URL: "http://keryx-voice-cloner:9880"
+  VOICE_CLONER_URL: "http://keryx-voices-cloner:8000"
+  VOICE_CLONER_GPT_URL: "http://keryx-voice-cloner-gpt:8000"
+  DIFFUSION_URL: "http://keryx-diffusion-engine:8000"
+  PPTX_URL: "http://keryx-pptx-builder:8000"
 
 imagePullSecrets:
   - name: ghcr-login

@@ -15,9 +15,11 @@ services:
       - EXTRACTOR_URL=http://keryx-extractor:8000
       - DEWATERMARK_URL=http://keryx-dewatermark:8000
       - VOICE_EXTRACTOR_URL=http://keryx-voice-extractor:8000
+      - TEXTS_TRANSLATION_URL=http://keryx-texts-translation:8000
       - VIDEO_COMPOSER_URL=http://keryx-video-composer:8000
       - VIDEO_GENERATOR_URL=http://keryx-video-generator:8000
-      - VOICE_CLONER_URL=http://keryx-voice-cloner:8000
+      - VOICE_CLONER_URL=http://keryx-voices-cloner:8000
+      - VOICES_COMPOSER_URL=http://voices-composer:8000
       - VOICE_CLONER_GPT_URL=http://keryx-voice-cloner-gpt:8000
       - DIFFUSION_URL=http://keryx-diffusion-engine:8000
       - PPTX_URL=http://keryx-pptx-builder:8000
@@ -32,7 +34,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
-  extractor:
+  keryx-extractor:
     build:
       context: ./services/extractor
     container_name: keryx-extractor
@@ -46,7 +48,7 @@ services:
     networks:
       - keryx-net
 
-  dewatermark:
+  keryx-dewatermark:
     build:
       context: ./services/dewatermark
     container_name: keryx-dewatermark
@@ -70,7 +72,7 @@ services:
     networks:
       - keryx-net
 
-  voice-extractor:
+  keryx-voice-extractor:
     build:
       context: ./services/voice-extractor
     container_name: keryx-voice-extractor
@@ -79,7 +81,6 @@ services:
       - "8003:8000"
     environment:
       - PORT=8000
-      - TRANSLATOR_BACKEND=ollama
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
@@ -98,7 +99,23 @@ services:
     networks:
       - keryx-net
 
-  video-composer:
+  keryx-texts-translation:
+    build:
+      context: ./services/texts-translation
+    container_name: keryx-texts-translation
+    profiles: ["ai"]
+    ports:
+      - "8010:8000"
+    environment:
+      - PORT=8000
+      - OLLAMA_URL=http://ollama.ollama.svc.cluster.local:11434
+      - TRANSLATOR_BACKEND=ollama
+    env_file:
+      - .env
+    networks:
+      - keryx-net
+
+  keryx-video-composer:
     build:
       context: ./services/video-composer
     container_name: keryx-video-composer
@@ -122,7 +139,22 @@ services:
     networks:
       - keryx-net
 
-  video-generator:
+  voices-composer:
+    build:
+      context: ./services/video-composer
+    container_name: voices-composer
+    profiles: ["ai"]
+    ports:
+      - "8011:8000"
+    environment:
+      - PORT=8000
+      - SERVICE_NAME=voices-composer
+    env_file:
+      - .env
+    networks:
+      - keryx-net
+
+  keryx-video-generator:
     build:
       context: ./services/video-generator
     container_name: keryx-video-generator
@@ -148,10 +180,10 @@ services:
     networks:
       - keryx-net
 
-  voice-cloner:
+  keryx-voices-cloner:
     build:
       context: ./services/voice-cloner
-    container_name: keryx-voice-cloner
+    container_name: keryx-voices-cloner
     profiles: ["ai"]
     ports:
       - "8006:8000"
@@ -174,7 +206,7 @@ services:
     networks:
       - keryx-net
 
-  voice-cloner-gpt:
+  keryx-voice-cloner-gpt:
     build:
       context: ./services/voice-cloner-gpt
     container_name: keryx-voice-cloner-gpt
@@ -202,7 +234,7 @@ services:
     networks:
       - keryx-net
 
-  diffusion-engine:
+  keryx-diffusion-engine:
     build:
       context: ./services/diffusion-engine
     container_name: keryx-diffusion-engine
@@ -228,7 +260,7 @@ services:
     networks:
       - keryx-net
 
-  pptx-builder:
+  keryx-pptx-builder:
     build:
       context: ./services/pptx-builder
     container_name: keryx-pptx-builder
