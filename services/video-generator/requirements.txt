@@ -14,7 +14,7 @@ aioboto3==13.4.0
 pydantic==2.13.3
 huggingface-hub==0.36.2
 moviepy==1.0.3
-numpy<2
+numpy<3
 requests==2.33.1
 opencv-python-headless<4.14
 httpx==0.28.1
