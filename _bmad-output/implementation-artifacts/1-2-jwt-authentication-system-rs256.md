@@ -1,6 +1,6 @@
 # Story 1.2: JWT Authentication System (RS256)
 
-Status: review
+Status: done
 
 ## Story
 
