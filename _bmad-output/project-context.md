@@ -25,6 +25,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Observability**: Tracing 0.1, OpenTelemetry 0.24, OTLP 0.17
 - **Kubernetes**: Kube 0.96, k8s-openapi 0.23 (v1.30)
 - **Error Handling**: Anyhow 1.0, Thiserror 2.0
+- **Dependency Locking**: Mandatory `Cargo.lock` and `requirements.txt` (with hashes) pinning in CI/CD.
 
 ### Python (AI/Processing Services)
 - **Framework**: FastAPI 0.136.1
@@ -51,7 +52,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Python
 - **Type Safety**: Use Pydantic v2 models for all API requests and responses.
 - **Async/IO**: Use `async/await` for all I/O operations (HTTP calls via `httpx`, S3 via `aioboto3`).
-- **Resource Management**: Large models (Whisper) must be loaded once via FastAPI `lifespan` and managed with `asyncio.Lock` if concurrent access is problematic.
+- **Error Handling**: Mandate `try/except` blocks for all AI model inferences (Whisper/Translation) to handle transient hardware or model errors.
+- **Resource Management**: Large models (Whisper) must be loaded once via FastAPI `lifespan`. Implement a failure fallback or health check during loading (e.g., return 503 if GPU OOM).
 
 ### Framework-Specific Rules
 
@@ -62,6 +64,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 #### FastAPI (Python)
 - **Schema Validation**: Define all input/output schemas as Pydantic models in the service directory. Ensure error formats are standardized with the Rust services.
+- **Model Synchronization**: Shared Pydantic/Serde models between services must be kept in sync via a shared repository or automated synchronization check in CI.
 - **Startup/Shutdown**: Use the `lifespan` context manager for resource initialization (e.g., loading ML models).
 - **Background Tasks**: Always use `try/except` and explicit logging inside `BackgroundTasks` to prevent silent failures.
 
@@ -70,16 +73,17 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### General
 - **Error Response Testing**: Every endpoint must have at least one test case for successful response (200/201) and one for error handling (400/404/500).
 - **Contractual Integrity**: All cross-service communication (Rust ↔ Python) must have schema validation tests using shared Pydantic/Serde models.
-- **Robustness Testing**: Critical data processing functions (audio slicing, translation) should implement property-based testing (e.g., `proptest` in Rust, `hypothesis` in Python).
-- **Performance Gates**: AI processing endpoints must include baseline benchmarks to ensure processing time stays within acceptable limits. Execute these in CI/CD environments that mirror production constraints.
+- **Robustness Testing**: Critical data processing functions (audio slicing, translation) should implement property-based testing (e.g., `proptest` in Rust, `hypothesis` in Python). Set `max_examples=100` for CI runs to prevent timeouts.
+- **Performance Gates**: AI processing endpoints must include baseline benchmarks. Maximum acceptable degradation per PR is 10%. Execute these in CI/CD environments that mirror production constraints.
+- **Observability & Logging**: Implement structured logging (JSON) across all services. Trace IDs must be propagated through the `X-Trace-Id` header for cross-service debugging.
 - **Scenario-Driven Integration**: Critical user journeys must be covered by end-to-end integration tests that span multiple units/modules.
 - **Self-Documenting Tests**: Use descriptive test names following the `Given_When_Then` pattern or similar to ensure tests serve as living documentation.
 - **Cross-Language Test Data**: Synchronize property-based testing generators between Rust and Python to ensure consistent edge-case handling.
-- **Golden File Testing**: Implement "Golden File" tests for complex AI outputs (transcriptions, audio) to detect regressions in model accuracy or quality.
+- **Golden File Testing**: Implement "Golden File" tests for complex AI outputs. Golden files must be versioned in Git (or LFS for large assets) and approved via PR by a domain expert.
 - **Circuit Breaker Testing**: Validate that services handle external dependency failures (S3, Redis) gracefully using circuit breaker patterns.
 - **Resource Limit Testing**: Ensure services stay within Kubernetes resource limits (CPU/GPU/RAM) and handle exhaustion without cascading failures.
 - **Idempotency Validation**: Verify that all processing jobs are idempotent and can be safely retried without data corruption or duplication.
-- **Cleanup Assurance**: Tests must verify that temporary files and resources are cleaned up even after catastrophic failures.
+- **Cleanup Assurance**: Tests must verify that temporary files and resources are cleaned up even after catastrophic failures. In CI, use resource labels or TTL to ensure test container cleanup on abort.
 - **Containerized Integration Testing**: Use the same container images (Redis, Minio) as production for integration tests (e.g., via Testcontainers or local K8s).
 - **Parity Validation**: Ensure that production environment variables, secrets, and volume mount patterns are accurately reflected in the integration test suite.
 - **Dependency Version Pinning**: Testing infrastructure versions must be explicitly pinned and synchronized with the configurations found in `deploy/`.
@@ -106,7 +110,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 #### Naming Conventions
 - **Files & Folders**: Always use `kebab-case`.
-- **Semantic Naming**: Use names that describe intent rather than data type (e.g., `processed_segments` instead of `segment_list`).
+- **Semantic Naming**: Use names that describe intent rather than data type. Common abbreviations (`ctx`, `req`, `resp`, `id`) are allowed if used consistently.
 - **Standard**: `snake_case` for variables/functions, `PascalCase` for types, `SCREAMING_SNAKE_CASE` for constants.
 
 #### Documentation
@@ -115,7 +119,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 #### Structure
 - **Nesting**: Limit function nesting to a maximum of 3 levels. Refactor if complexity exceeds this.
-- **Responsibility**: Follow the Single Responsibility Principle. Aim for files under 500 lines.
+- **Responsibility**: Follow the Single Responsibility Principle. Files **must** be kept under 500 lines.
 ### Development Workflow Rules
 
 #### Git & Commits
@@ -124,8 +128,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **PR Process**: All CI checks must pass. Squash and merge is preferred. Code must be verified locally via `docker-compose` before opening a PR.
 
 #### Environment & Security
-- **Local Dev**: Maintain `docker-compose` for local orchestration. Ensure parity between local and production environments.
-- **Secret Management**: Never commit credentials. Use Kubernetes Secrets or environment variables.
+- **Local Dev**: Maintain `docker-compose` for local orchestration. Ensure parity between local and production environments by using the same base images and Dockerfiles.
+- **Secret Management**: Never commit credentials. Use Kubernetes Secrets or environment variables. Enable `git-secrets` or similar pre-commit hooks to prevent leaks.
 
 #### Deployment & Infrastructure
 - **Infrastructure as Code**: All Kubernetes manifests must reside in the `deploy/` directory. No manual changes to the cluster.
