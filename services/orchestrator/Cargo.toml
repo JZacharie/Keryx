@@ -27,3 +27,7 @@ thiserror = "2.0"
 # Async
 async-trait = "0.1"
 futures = "0.3"
+
+# AWS
+aws-config = "1.5"
+aws-sdk-s3 = "1.6"
