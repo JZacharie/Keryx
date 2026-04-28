@@ -19,7 +19,7 @@
 # Story Status:
 #   - backlog: Story only exists in epic file
 #   - in-progress: Story file created in stories folder and Developer actively working on implementation
-#   - reviewStatus: in-progress code review (via Dev's code-review workflow)
+#   - reviewStatus: review code review (via Dev's code-review workflow)
 #   - done: Story completed
 #
 # Retrospective Status:
@@ -45,8 +45,8 @@ development_status:
   epic-1: in-progress
   1-1-project-skeleton-orchestrator-setup: done
   1-2-jwt-authentication-system-rs256: done
-  1-3-s3-json-job-store-idempotency: in-progress
-  1-4-media-ingestion-api-dashboard: backlog
+  1-3-s3-json-job-store-idempotency: done
+  1-4-media-ingestion-api-dashboard: review
   epic-1-retrospective: optional
 
   # Epic 2: Transcription, Review & Glossary

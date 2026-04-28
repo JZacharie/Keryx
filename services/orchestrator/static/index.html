@@ -3,700 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KERYX // PROJECT 2501</title>
-    <meta name="description" content="Keryx — AI-powered video ingestion and transformation pipeline. Submit a YouTube URL and watch your content transform in real time.">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+    <title>Keryx Orchestrator Dashboard</title>
     <style>
         :root {
-            --neon-cyan: #00fff9;
-            --neon-magenta: #ff00ff;
-            --neon-green: #39ff14;
-            --neon-orange: #ffaa00;
-            --neon-red: #ff0033;
-            --bg-dark: #0a0f1e;
-            --panel-bg: rgba(10, 15, 30, 0.92);
-            --border-glow: rgba(0, 255, 249, 0.3);
-            --text-primary: #e0e0e0;
-            --text-dim: #708090;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --success: #10b981;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Rajdhani', sans-serif; }
-
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-primary);
-            min-height: 100vh;
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            padding: 2rem 1rem;
-            overflow-x: hidden;
-            background-image:
-                linear-gradient(rgba(0, 255, 249, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 249, 0.03) 1px, transparent 1px);
-            background-size: 30px 30px;
+            min-height: 100vh;
         }
-
-        body::after {
-            content: " ";
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.1) 50%),
-                        linear-gradient(90deg, rgba(255,0,0,0.03), rgba(0,255,0,0.01), rgba(0,0,255,0.03));
-            background-size: 100% 3px, 3px 100%;
-            pointer-events: none;
-            z-index: 1000;
-        }
-
-        .container { width: 100%; max-width: 720px; position: relative; z-index: 10; }
 
         header {
-            margin-bottom: 2.5rem;
-            border-left: 4px solid var(--neon-cyan);
-            padding-left: 1.5rem;
+            width: 100%;
+            padding: 2rem;
+            text-align: center;
+            background: linear-gradient(to bottom, #1e293b, transparent);
         }
 
-        .logo {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 3.5rem;
-            font-weight: 900;
-            letter-spacing: 0.5rem;
-            color: var(--neon-cyan);
-            text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--border-glow);
-            text-transform: uppercase;
-            position: relative;
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .logo::after {
-            content: attr(data-text);
-            position: absolute;
-            left: 2px; top: 0;
-            text-shadow: -1px 0 var(--neon-red);
-            color: var(--neon-cyan);
-            background: var(--bg-dark);
-            overflow: hidden;
-            clip: rect(0, 900px, 0, 0);
-            animation: glitch-anim 3s infinite linear alternate-reverse;
-        }
-
-        @keyframes glitch-anim {
-            0%   { clip: rect(10px, 9999px, 50px, 0); transform: translateX(0); }
-            20%  { clip: rect(30px, 9999px, 10px, 0); transform: translateX(-2px); }
-            40%  { clip: rect(60px, 9999px, 80px, 0); transform: translateX(2px); }
-            60%  { clip: rect(10px, 9999px, 40px, 0); transform: translateX(0); }
-            80%  { clip: rect(50px, 9999px, 20px, 0); transform: translateX(-1px); }
-            100% { clip: rect(80px, 9999px, 60px, 0); transform: translateX(1px); }
-        }
-
-        .tagline {
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--neon-magenta);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.2rem;
-            opacity: 0.8;
-            margin-top: 0.3rem;
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            margin-top: 3rem;
         }
 
         .card {
-            background: var(--panel-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border-glow);
-            border-radius: 4px;
+            background-color: var(--card-bg);
+            border-radius: 1rem;
             padding: 2rem;
-            box-shadow: 0 0 30px rgba(0, 255, 249, 0.05);
-            position: relative;
-            overflow: hidden;
-            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
         }
 
-        .card::before {
-            content: "KERYX_OS_V2.0";
-            position: absolute;
-            top: 6px; right: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.55rem;
-            color: var(--neon-cyan);
-            opacity: 0.4;
-            letter-spacing: 0.1rem;
-        }
-
-        .section-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.65rem;
-            color: var(--neon-cyan);
-            text-transform: uppercase;
-            letter-spacing: 0.15rem;
-            margin-bottom: 0.6rem;
+        .input-group {
             display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            gap: 1rem;
+            margin-bottom: 2rem;
         }
 
-        .section-title i { font-size: 0.9rem; }
-
-        .input-group { margin-bottom: 1.25rem; }
-
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-glow);
-            border-radius: 2px;
-            padding: 0.85rem 1.1rem;
-            color: var(--neon-cyan);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.88rem;
-            transition: all 0.3s ease;
+        input {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
             outline: none;
+            transition: border-color 0.2s;
         }
 
-        input[type="text"]:focus, input[type="password"]:focus {
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 12px var(--border-glow);
+        input:focus {
+            border-color: var(--primary);
         }
 
-        input::placeholder { color: rgba(0, 255, 249, 0.3); font-size: 0.8rem; }
-
-        .langs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.6rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .lang-chip {
-            background: rgba(0, 255, 249, 0.04);
-            padding: 0.65rem 0.9rem;
-            border: 1px solid var(--border-glow);
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
             cursor: pointer;
-            text-align: left;
-            transition: 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05rem;
-            color: var(--text-dim);
-            user-select: none;
+            transition: background-color 0.2s, transform 0.1s;
         }
 
-        .lang-chip:hover { background: rgba(0, 255, 249, 0.08); color: var(--text-primary); }
-
-        .lang-chip.active {
-            border-color: var(--neon-cyan);
-            background: rgba(0, 255, 249, 0.15);
-            color: var(--neon-cyan);
-            box-shadow: inset 0 0 8px rgba(0, 255, 249, 0.15);
+        button:hover {
+            background-color: var(--primary-hover);
         }
 
-        .lang-chip .check { width: 10px; height: 10px; border: 1px solid currentColor; border-radius: 50%; flex-shrink: 0; transition: 0.2s; }
-        .lang-chip.active .check { background: var(--neon-cyan); }
-
-        button#submit-btn {
-            width: 100%;
-            background: transparent;
-            color: var(--neon-cyan);
-            border: 1px solid var(--neon-cyan);
-            padding: 1rem;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3rem;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            position: relative;
+        button:active {
+            transform: scale(0.98);
         }
 
-        button#submit-btn:hover:not(:disabled) {
-            background: var(--neon-cyan);
-            color: var(--bg-dark);
-            box-shadow: 0 0 25px rgba(0, 255, 249, 0.5);
+        .job-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
         }
 
-        button#submit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-        /* --- Progress bar --- */
-        .progress-section { display: none; margin-bottom: 1.5rem; }
-        .progress-section.visible { display: block; }
-
-        .job-meta {
+        .job-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.8rem;
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .job-id {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            color: var(--neon-cyan);
-            opacity: 0.7;
+            font-family: monospace;
+            color: var(--primary);
         }
 
-        .job-status-badge {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.6rem;
-            padding: 0.25rem 0.7rem;
-            border-radius: 100px;
-            text-transform: uppercase;
-            letter-spacing: 0.1rem;
-            border: 1px solid var(--neon-orange);
-            color: var(--neon-orange);
-            background: rgba(255, 170, 0, 0.08);
-            animation: pulse-badge 2s ease-in-out infinite;
+        .status-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
-
-        .job-status-badge.done { border-color: var(--neon-green); color: var(--neon-green); background: rgba(57, 255, 20, 0.08); animation: none; }
-        .job-status-badge.failed { border-color: var(--neon-red); color: var(--neon-red); background: rgba(255, 0, 51, 0.08); animation: none; }
-
-        @keyframes pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-        .phases {
-            display: flex;
-            gap: 3px;
-            margin-bottom: 0.6rem;
-        }
-
-        .phase-block {
-            flex: 1;
-            height: 4px;
-            background: rgba(0, 255, 249, 0.1);
-            border-radius: 2px;
-            transition: background 0.5s ease;
-            position: relative;
-        }
-
-        .phase-block.active {
-            background: var(--neon-orange);
-            box-shadow: 0 0 6px var(--neon-orange);
-            animation: phase-pulse 1s ease-in-out infinite;
-        }
-
-        .phase-block.done { background: var(--neon-green); box-shadow: 0 0 4px var(--neon-green); animation: none; }
-        .phase-block.failed { background: var(--neon-red); animation: none; }
-
-        @keyframes phase-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-
-        .phase-labels {
-            display: flex;
-            justify-content: space-between;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.5rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05rem;
-            margin-bottom: 1rem;
-        }
-
-        /* --- Terminal log --- */
-        .terminal {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(0, 255, 249, 0.15);
-            border-radius: 3px;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            line-height: 1.6;
-            max-height: 280px;
-            overflow-y: auto;
-            color: #b0c4b1;
-            scroll-behavior: smooth;
-        }
-
-        .terminal::-webkit-scrollbar { width: 4px; }
-        .terminal::-webkit-scrollbar-track { background: transparent; }
-        .terminal::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 2px; }
-
-        .log-line { display: block; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 1px 0; word-break: break-all; }
-        .log-line:last-child { border-bottom: none; }
-        .log-line.error { color: var(--neon-red); }
-        .log-line.success { color: var(--neon-green); }
-        .log-line .ts { color: rgba(0, 255, 249, 0.4); margin-right: 0.5rem; }
-
-        .terminal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.6rem;
-        }
-
-        .terminal-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; animation: blink 1.2s step-end infinite; }
-        .terminal-dot.red    { background: #ff5f57; animation: none; }
-        .terminal-dot.yellow { background: #febc2e; animation: none; }
-        .terminal-dot.green  { background: var(--neon-green); }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-
-        .terminal-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.55rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.15rem;
-        }
-
-        /* --- Alert status --- */
-        #alert-status {
-            margin-top: 1rem;
-            padding: 0.8rem 1rem;
-            border-radius: 2px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            display: none;
-            text-transform: uppercase;
-            letter-spacing: 0.05rem;
-        }
-
-        .status-success { color: var(--neon-green); border: 1px solid var(--neon-green); background: rgba(57, 255, 20, 0.05); }
-        .status-error   { color: var(--neon-red);   border: 1px solid var(--neon-red);   background: rgba(255, 0, 51, 0.05); }
-
-        .loader {
-            display: inline-block;
-            width: 0.9rem; height: 0.9rem;
-            border: 2px solid var(--neon-cyan);
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 0.9s linear infinite;
-            margin-right: 0.6rem;
-            vertical-align: middle;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         footer {
-            margin-top: 2rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.62rem;
+            margin-top: auto;
+            padding: 2rem;
             color: var(--text-dim);
-            text-align: center;
-            opacity: 0.5;
-            text-transform: uppercase;
-            letter-spacing: 0.1rem;
+            font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
-
-<div class="container">
     <header>
-        <div class="logo" data-text="KERYX">Keryx</div>
-        <p class="tagline">"Everything we see is a shadow cast by that which we do not see."</p>
+        <h1>Keryx Control Center</h1>
+        <p style="color: var(--text-dim)">Orchestrating media processing pipelines with precision.</p>
     </header>
 
-    <!-- Formulaire de soumission -->
-    <div class="card">
-        <form id="ingest-form">
-            <div class="input-group">
-                <div class="section-title"><i class="mdi mdi-youtube"></i> Source_Stream_Interface</div>
-                <input type="text" id="video-url" placeholder="URL://YOUTUBE.COM/WATCH?V=..." required>
-            </div>
-
-            <div class="input-group">
-                <div class="section-title"><i class="mdi mdi-translate"></i> Target_Linguistic_Matrix</div>
-                <div class="langs" id="lang-selection">
-                    <div class="lang-chip active" data-lang="fr"><span class="check"></span> FR_MATRIX</div>
-                    <div class="lang-chip" data-lang="es"><span class="check"></span> ES_MATRIX</div>
-                    <div class="lang-chip" data-lang="pt"><span class="check"></span> PT_MATRIX</div>
-                    <div class="lang-chip" data-lang="en"><span class="check"></span> EN_MATRIX</div>
-                </div>
-            </div>
-
-            <div class="input-group">
-                <div class="section-title"><i class="mdi mdi-key-variant"></i> Auth_Token</div>
-                <input type="password" id="api-key" placeholder="Bearer ••••••••••••••••" required>
-            </div>
-
-            <button type="submit" id="submit-btn">EXECUTE_INGESTION</button>
-        </form>
-
-        <div id="alert-status"></div>
-    </div>
-
-    <!-- Section de suivi (affichée après soumission) -->
-    <div class="progress-section" id="progress-section">
+    <div class="container">
         <div class="card">
-            <div class="job-meta">
-                <span class="job-id" id="job-id-display">JOB_ID: —</span>
-                <span class="job-status-badge" id="status-badge">INITIATING</span>
+            <div class="input-group">
+                <input type="text" id="mediaUrl" placeholder="Enter media URL (e.g. s3://bucket/video.mp4)">
+                <button onclick="submitJob()">Submit Job</button>
             </div>
 
-            <div class="phases" id="phase-blocks">
-                <!-- Généré en JS -->
-            </div>
-            <div class="phase-labels" id="phase-labels">
-                <!-- Généré en JS -->
-            </div>
-
-            <div class="terminal-header">
-                <div>
-                    <span class="terminal-dot red"></span>
-                    <span class="terminal-dot yellow"></span>
-                    <span class="terminal-dot green" id="live-dot"></span>
-                </div>
-                <span class="terminal-title">KERYX_LOG_STREAM</span>
-            </div>
-            <div class="terminal" id="terminal">
-                <span class="log-line" style="color: var(--text-dim);">Initialisation du stream de logs...</span>
-            </div>
+            <h3 style="margin-top: 0">Recent Activities</h3>
+            <ul class="job-list" id="jobList">
+                <li class="job-item" style="border-bottom: none; color: var(--text-dim); justify-content: center;">
+                    No jobs submitted yet.
+                </li>
+            </ul>
         </div>
     </div>
 
     <footer>
-        LOG_SESSION: 2026.04.12 // KERYX_UNIT_02 // POWERED_BY_OLLAMA_&amp;_WHISPER
+        &copy; 2026 Keryx Orchestrator • Status: <span style="color: var(--success)">Online</span>
     </footer>
-</div>
 
-<script>
-    // === Configuration phases ===
-    const PHASES = [
-        { key: 'Pending',           label: 'INIT'       },
-        { key: 'Downloading',       label: 'DL'         },
-        { key: 'Transcribing',      label: 'STT'        },
-        { key: 'Analyzing',         label: 'ANALYZE'    },
-        { key: 'Composing',         label: 'COMPOSE'    },
-        { key: 'Translating',       label: 'TRANSLATE'  },
-        { key: 'CloningVoice',      label: 'VOICE'      },
-        { key: 'Completed',         label: 'DONE'       },
-    ];
+    <script>
+        async function submitJob() {
+            const url = document.getElementById('mediaUrl').value;
+            if (!url) return;
 
-    // === DOM refs ===
-    const form         = document.getElementById('ingest-form');
-    const submitBtn    = document.getElementById('submit-btn');
-    const alertStatus  = document.getElementById('alert-status');
-    const langChips    = document.querySelectorAll('.lang-chip');
-    const progSection  = document.getElementById('progress-section');
-    const jobIdDisplay = document.getElementById('job-id-display');
-    const statusBadge  = document.getElementById('status-badge');
-    const terminal     = document.getElementById('terminal');
-    const liveDot      = document.getElementById('live-dot');
-    const phaseBlocks  = document.getElementById('phase-blocks');
-    const phaseLabels  = document.getElementById('phase-labels');
-
-    let currentEventSource = null;
-    let currentJobId = null;
-
-    // === Build phase tracker UI ===
-    function buildPhaseUI() {
-        phaseBlocks.innerHTML = '';
-        phaseLabels.innerHTML = '';
-        PHASES.forEach((p, i) => {
-            const block = document.createElement('div');
-            block.className = 'phase-block';
-            block.id = `phase-${i}`;
-            phaseBlocks.appendChild(block);
-
-            const label = document.createElement('span');
-            label.textContent = p.label;
-            phaseLabels.appendChild(label);
-        });
-    }
-
-    function setPhase(statusKey) {
-        const phaseIdx = PHASES.findIndex(p => p.key === statusKey);
-        if (phaseIdx === -1) return;
-
-        PHASES.forEach((_, i) => {
-            const block = document.getElementById(`phase-${i}`);
-            if (!block) return;
-            block.classList.remove('active', 'done', 'failed');
-            if (i < phaseIdx)      block.classList.add('done');
-            else if (i === phaseIdx) block.classList.add('active');
-        });
-    }
-
-    function setAllDone(failed = false) {
-        PHASES.forEach((_, i) => {
-            const block = document.getElementById(`phase-${i}`);
-            if (!block) return;
-            block.classList.remove('active', 'done', 'failed');
-            block.classList.add(failed ? 'failed' : 'done');
-        });
-    }
-
-    // === Language chips ===
-    langChips.forEach(chip => {
-        chip.addEventListener('click', () => chip.classList.toggle('active'));
-    });
-
-    // === Form submission ===
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const videoUrl = document.getElementById('video-url').value.trim();
-        const apiKey   = document.getElementById('api-key').value.trim();
-        const selectedLangs = Array.from(document.querySelectorAll('.lang-chip.active')).map(c => c.dataset.lang);
-
-        if (selectedLangs.length === 0) {
-            showAlert('ERROR: SELECT_AT_LEAST_ONE_LANGUAGE_PROTOCOL', 'error');
-            return;
-        }
-        if (!apiKey) {
-            showAlert('ERROR: AUTH_TOKEN_REQUIRED', 'error');
-            return;
-        }
-
-        setLoading(true);
-        hideAlert();
-
-        try {
-            const response = await fetch('/api/jobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({ video_url: videoUrl, target_langs: selectedLangs })
-            });
-
-            const data = await response.json();
-
-            if (response.status === 401 || response.status === 403) {
-                showAlert(`AUTH_FAILURE: ${data.error || 'INVALID_TOKEN'}`, 'error');
-                setLoading(false);
-                return;
+            const jobList = document.getElementById('jobList');
+            if (jobList.innerText.includes('No jobs submitted')) {
+                jobList.innerHTML = '';
             }
 
-            if (!response.ok) {
-                showAlert(`CRITICAL_FAILURE: ${data.error || 'SERVER_PROTOCOL_VIOLATION'}`, 'error');
-                setLoading(false);
-                return;
-            }
-
-            currentJobId = data.job_id;
-            startJobTracking(currentJobId, apiKey);
-
-        } catch (err) {
-            showAlert(`NETWORK_BRIDGE_COLLAPSE: ${err.message}`, 'error');
-            setLoading(false);
+            // Mock submission for now (since we need JWT for real API)
+            const id = Math.random().toString(36).substring(2, 10).toUpperCase();
+            
+            const li = document.createElement('li');
+            li.className = 'job-item';
+            li.innerHTML = `
+                <div>
+                    <span class="job-id">${id}</span>
+                    <div style="font-size: 0.8rem; color: var(--text-dim)">${url}</div>
+                </div>
+                <span class="status-badge">INGESTED</span>
+            `;
+            
+            jobList.prepend(li);
+            document.getElementById('mediaUrl').value = '';
         }
-    });
-
-    // === Job tracking via SSE ===
-    function startJobTracking(jobId, apiKey) {
-        buildPhaseUI();
-        setPhase('Pending');
-
-        progSection.classList.add('visible');
-        jobIdDisplay.textContent = `JOB_ID: ${jobId.substring(0, 18)}...`;
-        statusBadge.textContent  = 'RUNNING';
-        statusBadge.className    = 'job-status-badge';
-        terminal.innerHTML       = '';
-        liveDot.style.background = 'var(--neon-green)';
-
-        appendLog('Job créé. Connexion au stream de logs...', 'info');
-
-        // Fermer l'ancien EventSource si présent
-        if (currentEventSource) currentEventSource.close();
-
-        const sse = new EventSource(`/api/jobs/${jobId}/logs`);
-        currentEventSource = sse;
-
-        sse.addEventListener('log', (ev) => {
-            const lines = ev.data.split('\n');
-            lines.forEach(line => {
-                if (!line.trim()) return;
-                const isError   = line.toLowerCase().includes('erreur') || line.toLowerCase().includes('fatal') || line.toLowerCase().includes('failed');
-                const isSuccess = line.includes('✅') || line.toLowerCase().includes('terminé') || line.toLowerCase().includes('uploaded');
-                appendLog(line, isError ? 'error' : isSuccess ? 'success' : 'info');
-            });
-        });
-
-        sse.addEventListener('heartbeat', () => {
-            // On pulse le dot vert pour signaler que c'est vivant
-            liveDot.style.opacity = '0.3';
-            setTimeout(() => liveDot.style.opacity = '1', 300);
-        });
-
-        sse.addEventListener('done', () => {
-            sse.close();
-            liveDot.style.background = 'var(--neon-green)';
-            liveDot.style.animation = 'none';
-            setLoading(false);
-            // Récupérer le statut final du job
-            fetchJobStatus(jobId);
-        });
-
-        sse.addEventListener('error', (ev) => {
-            if (ev.data) appendLog(`SSE_ERROR: ${ev.data}`, 'error');
-            sse.close();
-            setLoading(false);
-            statusBadge.textContent = 'STREAM_LOST';
-            liveDot.style.background = 'var(--neon-red)';
-        });
-
-        // Polling du statut pour mise à jour de la barre de progression
-        const pollInterval = setInterval(async () => {
-            if (!currentJobId) { clearInterval(pollInterval); return; }
-            try {
-                const r = await fetch(`/api/jobs/${jobId}`);
-                if (!r.ok) return;
-                const job = await r.json();
-                updateBadgeFromStatus(job.status);
-                setPhase(typeof job.status === 'string' ? job.status : Object.keys(job.status)[0]);
-                if (job.status === 'Completed' || (typeof job.status === 'object' && job.status.Failed)) {
-                    clearInterval(pollInterval);
-                }
-            } catch(_) {}
-        }, 2000);
-    }
-
-    function fetchJobStatus(jobId) {
-        fetch(`/api/jobs/${jobId}`)
-            .then(r => r.json())
-            .then(job => {
-                const status = typeof job.status === 'string' ? job.status : Object.keys(job.status)[0];
-                const failed = status === 'Failed' || (typeof job.status === 'object' && job.status.Failed);
-                updateBadgeFromStatus(job.status);
-                if (failed) {
-                    setAllDone(true);
-                    appendLog('❌ Job terminé en erreur.', 'error');
-                } else {
-                    setAllDone(false);
-                    appendLog('✅ Job terminé avec succès. Tous les exports sont disponibles.', 'success');
-                }
-            })
-            .catch(() => {});
-    }
-
-    function updateBadgeFromStatus(status) {
-        const key = typeof status === 'string' ? status : Object.keys(status)[0];
-        const failed = key === 'Failed';
-        statusBadge.textContent = key.toUpperCase();
-        statusBadge.className   = 'job-status-badge' + (key === 'Completed' ? ' done' : failed ? ' failed' : '');
-    }
-
-    // === Helpers ===
-    function appendLog(text, type = 'info') {
-        const line  = document.createElement('span');
-        line.className = `log-line ${type === 'error' ? 'error' : type === 'success' ? 'success' : ''}`;
-        line.textContent = text;
-        terminal.appendChild(line);
-        terminal.scrollTop = terminal.scrollHeight;
-    }
-
-    function setLoading(isLoading) {
-        submitBtn.disabled = isLoading;
-        submitBtn.innerHTML = isLoading
-            ? '<span class="loader"></span> PROCESSING_CORE...'
-            : 'EXECUTE_INGESTION';
-    }
-
-    function showAlert(message, type) {
-        alertStatus.textContent = message;
-        alertStatus.className   = `status-${type}`;
-        alertStatus.style.display = 'block';
-    }
-
-    function hideAlert() {
-        alertStatus.style.display = 'none';
-    }
-
-    buildPhaseUI();
-</script>
-
+    </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # Story 1.3: S3-JSON Job Store & Idempotency
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -18,18 +18,18 @@ so that job data is persisted and can be retrieved by workers or for re-processi
 
 ## Tasks / Subtasks
 
-- [ ] Setup S3 Dependencies (AC: 1)
-  - [ ] Add `aws-config`, `aws-sdk-s3` to `services/orchestrator/Cargo.toml`.
-- [ ] Define Domain Port (AC: 3)
-  - [ ] Create `src/domain/ports/job_repository.rs`.
-  - [ ] Define `async_trait` for `JobRepository`.
-- [ ] Implement S3 Adapter (Infrastructure) (AC: 1, 2)
-  - [ ] Create `src/infrastructure/repositories/s3_job_repository.rs`.
-  - [ ] Implement the `JobRepository` trait using AWS SDK.
-- [ ] Update Domain Entities (AC: 5)
-  - [ ] Add `serde` derives to `Job` and `JobStatus` in `src/domain/entities/job.rs`.
-- [ ] Implement Idempotency Logic (AC: 4)
-  - [ ] Add a check in the (future) use case or service layer (or basic check in the adapter for now).
+- [x] Setup S3 Dependencies (AC: 1)
+  - [x] Add `aws-config`, `aws-sdk-s3` to `services/orchestrator/Cargo.toml`.
+- [x] Define Domain Port (AC: 3)
+  - [x] Create `src/domain/ports/job_repository.rs`.
+  - [x] Define `async_trait` for `JobRepository`.
+- [x] Implement S3 Adapter (Infrastructure) (AC: 1, 2)
+  - [x] Create `src/infrastructure/repositories/s3_job_repository.rs`.
+  - [x] Implement the `JobRepository` trait using AWS SDK.
+- [x] Update Domain Entities (AC: 5)
+  - [x] Add `serde` derives to `Job` and `JobStatus` in `src/domain/entities/job.rs`.
+- [x] Implement Idempotency Logic (AC: 4)
+  - [x] Add a check in the (future) use case or service layer (or basic check in the adapter for now).
 
 ## Dev Notes
 
@@ -51,8 +51,26 @@ so that job data is persisted and can be retrieved by workers or for re-processi
 
 ### Agent Model Used
 
+Antigravity (Gemini 2.0)
+
 ### Debug Log References
+
+- [Cargo Check Output](file:///home/joseph/git/Keryx/services/orchestrator/target/debug/...)
 
 ### Completion Notes List
 
+- Added S3 SDK dependencies.
+- Created `JobRepository` port.
+- Implemented `S3JobRepository` with `save`, `get_by_id`, and `exists`.
+- Updated `Job` entity with Serde derives.
+- Integrated repository into `AppState`.
+
 ### File List
+
+- `services/orchestrator/Cargo.toml`
+- `services/orchestrator/src/domain/ports/job_repository.rs`
+- `services/orchestrator/src/domain/ports/mod.rs`
+- `services/orchestrator/src/domain/entities/job.rs`
+- `services/orchestrator/src/infrastructure/repositories/s3_job_repository.rs`
+- `services/orchestrator/src/infrastructure/repositories/mod.rs`
+- `services/orchestrator/src/main.rs`
