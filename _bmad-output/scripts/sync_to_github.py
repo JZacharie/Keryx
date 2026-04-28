@@ -11,20 +11,28 @@ def parse_epics(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Regex to find Epics
-    epic_pattern = r"## Epic (\d+): (.*?)\n(.*?)(?=\n## Epic|\n#|\Z)"
-    epics = re.findall(epic_pattern, content, re.DOTALL)
+    # Improved Regex for Epics (handles optional spaces and newlines)
+    epic_pattern = r"## Epic (\d+):\s*(.*?)\n"
+    epics = list(re.finditer(epic_pattern, content))
 
     parsed_data = []
 
-    for epic_num, epic_title, epic_content in epics:
-        # Regex to find Stories within an Epic
-        story_pattern = r"### Story (\d+\.\d+): (.*?)\n(.*?)(?=\n### Story|\Z)"
+    for i, match in enumerate(epics):
+        epic_num = match.group(1)
+        epic_title = match.group(2).strip()
+        
+        # Get content between this epic and the next one
+        start_pos = match.end()
+        end_pos = epics[i+1].start() if i + 1 < len(epics) else len(content)
+        epic_content = content[start_pos:end_pos]
+
+        # Improved Regex for Stories (handles the '### Story X.Y: Title' format)
+        story_pattern = r"### Story (\d+\.\d+):\s*(.*?)\n(.*?)(?=\n### Story|\n## Epic|\n#|\Z)"
         stories = re.findall(story_pattern, epic_content, re.DOTALL)
         
         epic_data = {
             "number": epic_num,
-            "title": epic_title.strip(),
+            "title": epic_title,
             "stories": []
         }
         
@@ -65,6 +73,12 @@ def main():
     
     args = parser.parse_args()
 
+    mapping_file = "_bmad-output/planning-artifacts/github_mapping.json"
+    mapping = {}
+    if os.path.exists(mapping_file):
+        with open(mapping_file, "r") as f:
+            mapping = json.load(f)
+
     if not os.path.exists(args.file):
         print(f"File not found: {args.file}")
         return
@@ -72,13 +86,17 @@ def main():
     print(f"Reading {args.file}...")
     epics = parse_epics(args.file)
     
-    mapping = {}
-
     for epic in epics:
         print(f"\nProcessing Epic {epic['number']}: {epic['title']}")
-        epic_label = f"Epic: {epic['title']}"
+        # Clean label name: remove commas and special chars
+        clean_title = epic['title'].replace(",", "").replace("&", "and")
+        epic_label = f"Epic: {clean_title}"
         
         for story in epic['stories']:
+            if story['number'] in mapping:
+                print(f"  Story {story['number']} already exists (Issue #{mapping[story['number']]['github_id']}). Skipping.")
+                continue
+
             title = f"[{story['number']}] {story['title']}"
             body = f"## {story['title']}\n\n{story['body']}\n\n---\n*Part of Epic {epic['number']}: {epic['title']}*"
             
@@ -93,9 +111,9 @@ def main():
                 print(f"    Success: {issue['html_url']}")
 
     # Save mapping
-    with open("_bmad-output/planning-artifacts/github_mapping.json", "w") as f:
+    with open(mapping_file, "w") as f:
         json.dump(mapping, f, indent=2)
-    print(f"\nSync complete. Mapping saved to _bmad-output/planning-artifacts/github_mapping.json")
+    print(f"\nSync complete. Mapping updated in {mapping_file}")
 
 if __name__ == "__main__":
     main()
