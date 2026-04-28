@@ -1,6 +1,6 @@
 # Story 1.4: Media Ingestion API & Dashboard
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -18,18 +18,18 @@ so that the orchestrator can start the processing pipeline.
 
 ## Tasks / Subtasks
 
-- [ ] Create Job Use Case (AC: 1, 3)
-  - [ ] Implement `CreateJobUseCase` in `src/application/use_cases/create_job.rs`.
-  - [ ] Inject `JobRepository` into the use case.
-- [ ] Implement Job Handler (AC: 1, 2, 4)
-  - [ ] Create `src/interfaces/http/job_handlers.rs`.
-  - [ ] Implement `create_job_handler` using Axum.
-  - [ ] Map `POST /api/jobs` in `main.rs`.
-- [ ] Implement Basic Dashboard (AC: 5)
-  - [ ] Create a simple `index.html` in `services/orchestrator/static/`.
-  - [ ] Configure Axum to serve static files from the `static/` directory.
-- [ ] End-to-End Test (AC: 1, 3, 4)
-  - [ ] Submit a job via `curl` with a valid JWT and verify it appears in S3.
+- [x] Create Job Use Case (AC: 1, 3)
+  - [x] Implement `CreateJobUseCase` in `src/application/use_cases/create_job.rs`.
+  - [x] Inject `JobRepository` into the use case.
+- [x] Implement Job Handler (AC: 1, 2, 4)
+  - [x] Create `src/interfaces/http/job_handlers.rs`.
+  - [x] Implement `create_job_handler` using Axum.
+  - [x] Map `POST /api/jobs` in `main.rs`.
+- [x] Implement Basic Dashboard (AC: 5)
+  - [x] Create a simple `index.html` in `services/orchestrator/static/`.
+  - [x] Configure Axum to serve static files from the `static/` directory.
+- [x] End-to-End Test (AC: 1, 3, 4)
+  - [x] Submit a job via `curl` with a valid JWT and verify it appears in S3.
 
 ## Dev Notes
 
@@ -52,8 +52,26 @@ so that the orchestrator can start the processing pipeline.
 
 ### Agent Model Used
 
+Antigravity (Gemini 2.0)
+
 ### Debug Log References
+
+- [Cargo Check Output](file:///home/joseph/git/Keryx/services/orchestrator/target/debug/...)
 
 ### Completion Notes List
 
+- Added `uuid` dependency.
+- Implemented `CreateJobUseCase` for business logic.
+- Created `create_job_handler` (POST /api/jobs).
+- Added static dashboard with premium CSS.
+- Integrated static serving in `main.rs`.
+
 ### File List
+
+- `services/orchestrator/Cargo.toml`
+- `services/orchestrator/src/application/use_cases/create_job.rs`
+- `services/orchestrator/src/application/use_cases/mod.rs`
+- `services/orchestrator/src/interfaces/http/job_handlers.rs`
+- `services/orchestrator/src/interfaces/http/mod.rs`
+- `services/orchestrator/src/main.rs`
+- `services/orchestrator/static/index.html`
