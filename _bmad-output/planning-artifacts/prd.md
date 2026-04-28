@@ -38,3 +38,50 @@ Keryx differentiates itself through its deep integration of generative AI models
 - **Domain:** Scientific (AI/ML & Media Data Processing)
 - **Complexity:** Medium (Distributed AI inference, GPU scaling, temporal synchronization)
 - **Project Context:** Brownfield (Existing system with modular hexagonal architecture)
+
+## Success Criteria
+
+### User Success
+
+- **Seamless Localization:** Users achieve a fully localized technical presentation where the original speaker's voice is preserved and synchronized with the slides, requiring zero manual intervention.
+- **Speed to Market:** The end-to-end processing time for a standard 30-minute presentation is reduced from days (manual) to less than the video duration itself (automated).
+- **Editability:** Users receive not only a video but also a fully editable localized PowerPoint (PPTX) file, enabling final adjustments if necessary.
+
+### Business Success
+
+- **Operational Efficiency:** Drastic reduction in localization costs by replacing human-in-the-loop translation and voice-over with an automated AI pipeline.
+- **Scalability:** The system reliably handles a high volume of video processing requests (100+ per day) on the Kubernetes cluster without manual monitoring.
+- **Knowledge Accessibility:** Increased globalization of technical training assets across multiple linguistic matrices (FR, ES, etc.).
+
+### Technical Success
+
+- **Inference Efficiency:** High cache hit rate in the idempotent S3/Redis layer, minimizing redundant calls to heavy LLM (Ollama/Llama 3) and STT (Whisper) services.
+- **Temporal Accuracy:** 100% frame-accurate synchronization between detected slide transitions and localized audio segments.
+- **Resource Management:** Optimized GPU utilization with automatic scale-up/scale-down via WorkerGuard patterns.
+
+### Measurable Outcomes
+
+- **Processing Latency:** Localization time < Video duration.
+- **Transcription Quality:** Word Error Rate (WER) < 5% for technical content.
+- **Pipeline Reliability:** Job success rate > 98% across all phases (Downloading to PPTX Generation).
+
+## Product Scope
+
+### MVP - Minimum Viable Product
+
+- **Core Pipeline:** YouTube URL ingestion, Faster-Whisper transcription, LLM-based technical translation, and Coqui XTTS v2 voice cloning.
+- **Visuals:** ffmpeg scene detection and basic watermark removal.
+- **Outputs:** High-fidelity video exports (EN, FR) and localized PPTX files.
+- **Infrastructure:** Rust orchestrator with hexagonal architecture and S3/Redis persistence.
+
+### Growth Features (Post-MVP)
+
+- **Multilingual Expansion:** Support for a wider range of target languages beyond FR and ES.
+- **Advanced Visuals:** Improved AI-driven slide cleaning for complex backgrounds and watermarks.
+- **Integration:** Real-time job notifications via Slack with direct download links.
+
+### Vision (Future)
+
+- **Cinematic Enhancements:** Integration of advanced Stable Video Diffusion (SVD) for dynamic slide intros.
+- **Live Localization:** Low-latency pipeline for near real-time localization of live streams.
+- **Interactive Feedback:** Web-based interface for fine-tuning transcription and translation before final composition.
