@@ -1,6 +1,6 @@
 fastapi==0.136.1
 uvicorn==0.30.6
-python-multipart==0.0.26
+python-multipart==0.0.27
 pytest
 httpx==0.28.1
 aioboto3==13.4.0
