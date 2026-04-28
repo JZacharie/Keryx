@@ -1,6 +1,6 @@
 # Story 1.1: Project Skeleton & Orchestrator Setup
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -18,18 +18,18 @@ so that hexagonal architecture purity is enforced from the start.
 
 ## Tasks / Subtasks
 
-- [ ] Initialize Mono-repo Structure (AC: 1)
-  - [ ] Create top-level directories: `orchestrator`, `workers`, `dashboard`, `contracts`, `deploy`, `_bmad-output`.
-- [ ] Initialize Rust Orchestrator (AC: 2, 3)
-  - [ ] Run `cargo new orchestrator` in the root.
-  - [ ] Configure `Cargo.toml` with Axum 0.7, Tokio 1.0 (full), Serde, and Tower-HTTP. [Source: project-context.md]
-  - [ ] Create folder structure: `src/domain`, `src/application`, `src/infrastructure`, `src/interfaces`.
-- [ ] Implement Basic Axum Server (AC: 2, 5)
-  - [ ] Implement a basic Axum server in `orchestrator/src/main.rs`.
-  - [ ] Add a `health_check` handler in `src/interfaces/http/health.rs`.
-  - [ ] Map `GET /health` in `main.rs`.
-- [ ] Domain Purity Validation (AC: 4)
-  - [ ] Add a placeholder entity in `src/domain/entities/mod.rs` to verify no external dependencies are needed.
+- [x] Initialize Mono-repo Structure (AC: 1)
+  - [x] Create top-level directories: `orchestrator`, `workers`, `dashboard`, `contracts`, `deploy`, `_bmad-output`.
+- [x] Initialize Rust Orchestrator (AC: 2, 3)
+  - [x] Run `cargo new orchestrator` in the root.
+  - [x] Configure `Cargo.toml` with Axum 0.7, Tokio 1.0 (full), Serde, and Tower-HTTP. [Source: project-context.md]
+  - [x] Create folder structure: `src/domain`, `src/application`, `src/infrastructure`, `src/interfaces`.
+- [x] Implement Basic Axum Server (AC: 2, 5)
+  - [x] Implement a basic Axum server in `orchestrator/src/main.rs`.
+  - [x] Add a `health_check` handler in `src/interfaces/http/health.rs`.
+  - [x] Map `GET /health` in `main.rs`.
+- [x] Domain Purity Validation (AC: 4)
+  - [x] Add a placeholder entity in `src/domain/entities/mod.rs` to verify no external dependencies are needed.
 
 ## Dev Notes
 
@@ -56,8 +56,29 @@ so that hexagonal architecture purity is enforced from the start.
 
 ### Agent Model Used
 
+Antigravity (Gemini 2.0)
+
 ### Debug Log References
+
+- [Cargo Check Output](file:///home/joseph/git/Keryx/orchestrator/target/debug/.fingerprint/...)
 
 ### Completion Notes List
 
+- Created mono-repo structure.
+- Initialized Rust Orchestrator with Axum 0.7.
+- Implemented Hexagonal Architecture folder structure.
+- Created health check endpoint.
+- Verified domain purity with a simple entity.
+
 ### File List
+
+- `orchestrator/Cargo.toml`
+- `orchestrator/src/main.rs`
+- `orchestrator/src/domain/entities/job.rs`
+- `orchestrator/src/domain/entities/mod.rs`
+- `orchestrator/src/domain/mod.rs`
+- `orchestrator/src/interfaces/http/health.rs`
+- `orchestrator/src/interfaces/http/mod.rs`
+- `orchestrator/src/interfaces/mod.rs`
+- `orchestrator/src/application/mod.rs`
+- `orchestrator/src/infrastructure/mod.rs`
