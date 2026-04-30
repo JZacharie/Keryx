@@ -5,18 +5,6 @@
 		},
 		{
 			"path": "../../../Sanofi/inova-nextgen"
-		},
-		{
-			"path": "../.."
-		},
-		{
-			"path": "../../../jo3"
-		},
-		{
-			"path": "../../../Kusanagi"
-		},
-		{
-			"path": "../../../helmscharts"
 		}
 	],
 	"settings": {}

@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../helmscharts"
+		},
+		{
+			"path": "../jo3"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../Kusanagi"
+		}
+	],
+	"settings": {}
+}
