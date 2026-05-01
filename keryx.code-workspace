@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../Kusanagi"
+		},
+		{
+			"path": "../clauderocks"
 		}
 	],
 	"settings": {}
