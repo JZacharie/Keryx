@@ -23,6 +23,9 @@
 		},
 		{
 			"path": "../keystore"
+		},
+		{
+			"path": "../Mnemosyne"
 		}
 	],
 	"settings": {}
