@@ -155,7 +155,7 @@ jobs:
 
       - name: Upload artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: burn-in-failure-artifacts
           path: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-shard-${{ matrix.shard }}
           path: |
@@ -210,7 +210,7 @@ jobs:
 
       - name: Upload JUnit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-results-shard-${{ matrix.shard }}
           path: test-results/junit.xml
@@ -234,7 +234,7 @@ jobs:
           echo "Merged report available in playwright-report/"
 
       - name: Upload merged report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: merged-playwright-report
           path: playwright-report/
