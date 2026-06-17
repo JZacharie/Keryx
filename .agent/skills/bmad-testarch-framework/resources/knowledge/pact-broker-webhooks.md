@@ -88,7 +88,7 @@ jobs:
       GITHUB_SHA: ${{ github.event.client_payload.sha || github.sha }}
       GITHUB_BRANCH: ${{ github.event.client_payload.branch || github.head_ref || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Check out the provider version known to the broker — this is the provider SHA PactFlow wants verified.
           ref: ${{ github.event.client_payload.sha || github.sha }}

@@ -443,7 +443,7 @@ jobs:
   detect-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Full history for accurate diff
 
@@ -608,7 +608,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run PR-level tests
         run: |
           npm run test:changed
@@ -620,7 +620,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run full regression
         run: npm run test:regression
 
@@ -630,7 +630,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run staging smoke tests
         run: npm run test:e2e -- --grep "@smoke"
         env:
@@ -643,7 +643,7 @@ jobs:
     timeout-minutes: 5
     continue-on-error: true # Don't fail deployment if smoke tests fail
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run production smoke tests
         run: npm run test:e2e:prod -- --grep "@smoke.*@p0"
         env:

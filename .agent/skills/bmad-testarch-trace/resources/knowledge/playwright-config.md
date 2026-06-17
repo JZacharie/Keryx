@@ -343,7 +343,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -457,7 +457,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4] # Split tests across 4 machines
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -690,7 +690,7 @@ jobs:
       matrix:
         project: [chromium, firefox, webkit, mobile-chrome]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
       - run: npm ci
       - run: npx playwright install --with-deps
