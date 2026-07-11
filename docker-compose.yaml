@@ -48,8 +48,10 @@ services:
       - OTEL_AUTH_TOKEN=Basic am9zZXBoQHphY2hhcmllLm9yZzpTdXBlcm1hbi02OTIzMA==
       - API_KEY=${API_KEY:-changeme}
       - DOCKER_NETWORK=keryx_keryx-net
+      - HOST_SHARED_DIR=${HOST_SHARED_DIR:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./shared_data:/shared
     depends_on:
       - redis
     networks:

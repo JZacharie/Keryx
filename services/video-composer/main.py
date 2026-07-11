@@ -296,6 +296,13 @@ async def compose(req: ComposeRequest):
         key = req.output_key or f"{req.job_id}/video-composer/exports/composed_{uuid.uuid4()}.mp4"
         result_url = await upload_file(output_video, key)
 
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "video-composer")
+            os.makedirs(out_dir, exist_ok=True)
+            shutil.copy(output_video, os.path.join(out_dir, "final_output.mp4"))
+            logger.info(f"[{request_id}] Copied composed video to shared volume: {out_dir}")
+
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] Done in {elapsed:.1f}s → {result_url}")
         return {"status": "success", "url": result_url, "duration": f"{elapsed:.2f}s"}
@@ -344,6 +351,13 @@ async def concat_audio(req: ConcatAudioRequest):
 
         key = req.output_key or f"{req.job_id}/video-composer/audio/merged_{uuid.uuid4()}.wav"
         result_url = await upload_file(merged_wav, key, content_type="audio/wav")
+
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "video-composer")
+            os.makedirs(out_dir, exist_ok=True)
+            shutil.copy(merged_wav, os.path.join(out_dir, "merged_audio.wav"))
+            logger.info(f"[{request_id}] Copied merged audio to shared volume: {out_dir}")
 
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] Merged {len(req.segments)} segments in {elapsed:.1f}s → {result_url}")
@@ -412,6 +426,14 @@ async def detect_slides(req: DetectSlidesRequest):
 
         pairs = list(zip(frame_files, timestamps[:len(frame_files)]))
         slides = await asyncio.gather(*[upload_frame(i, fp, ts) for i, (fp, ts) in enumerate(pairs)])
+
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "video-composer", "detected_slides")
+            os.makedirs(out_dir, exist_ok=True)
+            for fp in frame_files:
+                shutil.copy(fp, os.path.join(out_dir, os.path.basename(fp)))
+            logger.info(f"[{request_id}] Copied slides frames to shared volume: {out_dir}")
 
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] Done in {elapsed:.1f}s")

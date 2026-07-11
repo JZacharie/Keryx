@@ -9,14 +9,18 @@ def test_e2e_flow():
     
     # 1. Submit Job
     payload = {
-        "video_url": "https://www.youtube.com/watch?v=PsPqWLoZaMc",
-        "target_langs": ["fr", "en"]
+        "video_url": "https://www.youtube.com/watch?v=s_cfKmu34Es",
+        "target_langs": ["fr"]
+    }
+    
+    headers = {
+        "Authorization": "Bearer 0123456789"
     }
     
     print(f"📡 Submitting job to {API_URL}/jobs")
-    response = requests.post(f"{API_URL}/jobs", json=payload)
+    response = requests.post(f"{API_URL}/jobs", json=payload, headers=headers)
     
-    if response.status_code != 202:
+    if response.status_code not in [201, 202]:
         print(f"❌ Failed to submit job. Status: {response.status_code}, Body: {response.text}")
         sys.exit(1)
         
@@ -26,7 +30,7 @@ def test_e2e_flow():
     # 2. Polling Loop
     max_retries = 30 # 5 minutes max
     for i in range(max_retries):
-        resp = requests.get(f"{API_URL}/jobs/{job_id}")
+        resp = requests.get(f"{API_URL}/jobs/{job_id}", headers=headers)
         if resp.status_code == 200:
             status = resp.json().get("status")
             print(f"⏳ Status: {status} ({i}/{max_retries})")

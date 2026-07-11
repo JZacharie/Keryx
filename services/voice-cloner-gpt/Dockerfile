@@ -22,13 +22,14 @@ RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git .
 
 # 3. Install uv and requirements
 ENV UV_SYSTEM_PYTHON=1
+ENV UV_BREAK_SYSTEM_PACKAGES=1
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /root/.local/bin/uvx /bin/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     sed -i '/transformers/d; /peft/d' requirements.txt && \
     pip uninstall -y torchaudio && \
-    uv pip install torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
+    uv pip install torchaudio==2.2.1 torchvision==0.17.1 --index-url https://download.pytorch.org/whl/cu121 && \
     uv pip install "transformers>=4.45.0,<5.0" "peft>=0.12.0" "huggingface_hub<0.24"
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -38,7 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     requests \
     dm-tree>=0.1.8 \
     x-transformers \
-    f5-tts
+    f5-tts \
+    torchvision==0.17.1
 
 # 4. Download pretrained models
 RUN uv pip install "huggingface_hub>=0.24" && \

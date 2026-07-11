@@ -44,3 +44,4 @@ Thumbs.db
 outputs/
 venv/
 test_venv/
+shared_data/

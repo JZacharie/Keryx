@@ -222,6 +222,14 @@ async def extract(req: ExtractRequest):
             upload_to_s3(audio_path, audio_key, f"audio/{req.audio_format}", request_id),
         )
 
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "extractor")
+            os.makedirs(out_dir, exist_ok=True)
+            shutil.copy(video_path, os.path.join(out_dir, "video.mp4"))
+            shutil.copy(audio_path, os.path.join(out_dir, f"audio.{req.audio_format}"))
+            logger.info(f"[{request_id}] Copied source files to shared volume: {out_dir}")
+
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] PROCESSED OK: '{title}' in {elapsed:.1f}s")
 

@@ -120,6 +120,14 @@ async def clone_voice(req: CloneRequest):
             await s3.upload_file(out_path, S3_BUCKET, key, ExtraArgs={"ContentType": "audio/wav"})
         
         result_url = f"{S3_ENDPOINT}/{S3_BUCKET}/{key}"
+
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "voices-cloner")
+            os.makedirs(out_dir, exist_ok=True)
+            filename = os.path.basename(key)
+            shutil.copy(out_path, os.path.join(out_dir, filename))
+            logger.info(f"[{request_id}] Copied cloned segment to shared volume: {out_dir}")
         
         duration = time.time() - start_time
         logger.info(f"[{request_id}] Done in {duration:.1f}s → {result_url}")

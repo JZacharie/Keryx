@@ -193,6 +193,15 @@ async def transcribe(req: TranscribeRequest):
             for s in raw_segments
         ]
 
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            import json
+            out_dir = os.path.join(shared_dir, req.job_id, "voice-extractor")
+            os.makedirs(out_dir, exist_ok=True)
+            with open(os.path.join(out_dir, "segments.json"), "w", encoding="utf-8") as f:
+                json.dump([s.dict() for s in segments], f, indent=2, ensure_ascii=False)
+            logger.info(f"[{request_id}] Copied segments to shared volume: {out_dir}")
+
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] {len(segments)} segments, {duration:.1f}s audio, done in {elapsed:.1f}s")
 

@@ -203,6 +203,16 @@ async def translate(req: TranslateRequest):
             )
 
     translated_segments = await asyncio.gather(*[translate_segment(s) for s in req.segments])
+
+    shared_dir = os.getenv("SHARED_DATA_DIR")
+    if shared_dir:
+        import json
+        out_dir = os.path.join(shared_dir, req.job_id, "texts-translation")
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "translated_segments.json"), "w", encoding="utf-8") as f:
+            json.dump([s.dict() for s in translated_segments], f, indent=2, ensure_ascii=False)
+        logger.info(f"[{request_id}] Copied translated segments to shared volume: {out_dir}")
+
     elapsed = time.time() - start_time
     logger.info(f"[{request_id}] Translation done in {elapsed:.1f}s")
     return TranslateResponse(status="success", segments=list(translated_segments))

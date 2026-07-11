@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: services/orchestrator/Dockerfile
+    image: keryx-orchestrator
     container_name: keryx-orchestrator
     ports:
       - "3000:3000"
@@ -28,21 +29,26 @@ services:
       - PPTX_URL=http://keryx-pptx-builder:8000
       - SCALING_MODE=compose
       - API_KEY=${API_KEY:-0123456789}
+      - HOST_SHARED_DIR=e:\git\JZacharie\Keryx\shared_data
     depends_on:
       - redis
       - minio
       - create-buckets
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./shared_data:/mnt/shared
     networks:
       - keryx-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # ── Workers (manual profile = built but not auto-started) ──
+  # The orchestrator creates these dynamically as needed.
   keryx-extractor:
     build:
       context: ./services/extractor
-    container_name: keryx-extractor
-    ports:
-      - "8001:8000"
+    image: keryx-extractor
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - S3_ENDPOINT=http://minio:9000
@@ -55,46 +61,29 @@ services:
   keryx-dewatermark:
     build:
       context: ./services/dewatermark
-    container_name: keryx-dewatermark
-    ports:
-      - "8002:8000"
+    image: keryx-dewatermark
+    profiles: ["manual"]
     environment:
       - PORT=8000
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     networks:
       - keryx-net
 
   keryx-voice-extractor:
     build:
       context: ./services/voice-extractor
-    container_name: keryx-voice-extractor
-    ports:
-      - "8003:8000"
+    image: keryx-voice-extractor
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - WHISPER_MODEL=medium
-      - TRANSLATOR_BACKEND=ollama
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     volumes:
       - keryx-cache:/app/.cache/whisper
     networks:
@@ -103,9 +92,8 @@ services:
   keryx-texts-translation:
     build:
       context: ./services/texts-translation
-    container_name: keryx-texts-translation
-    ports:
-      - "8010:8000"
+    image: keryx-texts-translation
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
@@ -123,31 +111,23 @@ services:
   keryx-video-composer:
     build:
       context: ./services/video-composer
-    container_name: keryx-video-composer
-    ports:
-      - "8004:8000"
+    image: keryx-video-composer
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - VIDEO_ENCODER=h264_nvenc
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     networks:
       - keryx-net
 
   voices-composer:
     build:
       context: ./services/video-composer
-    container_name: voices-composer
-    ports:
-      - "8011:8000"
+    image: voices-composer
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - SERVICE_NAME=voices-composer
@@ -161,22 +141,14 @@ services:
   keryx-video-generator:
     build:
       context: ./services/video-generator
-    container_name: keryx-video-generator
-    ports:
-      - "8005:8000"
+    image: keryx-video-generator
+    profiles: ["manual"]
     environment:
       - PORT=8000
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     volumes:
       - hf-models:/app/huggingface
     networks:
@@ -185,22 +157,14 @@ services:
   keryx-voices-cloner:
     build:
       context: ./services/voice-cloner
-    container_name: keryx-voices-cloner
-    ports:
-      - "8006:8000"
+    image: keryx-voices-cloner
+    profiles: ["manual"]
     environment:
       - PORT=8000
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     volumes:
       - coqui-models:/root/.local/share/tts
     networks:
@@ -209,22 +173,14 @@ services:
   keryx-voice-cloner-gpt:
     build:
       context: ./services/voice-cloner-gpt
-    container_name: keryx-voice-cloner-gpt
-    ports:
-      - "8007:8000"
+    image: keryx-voice-cloner-gpt
+    profiles: ["manual"]
     environment:
       - PORT=8000
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     volumes:
       - ./services/voice-cloner-gpt/GPT_weights:/app/GPT_weights
       - ./services/voice-cloner-gpt/SoVITS_weights:/app/SoVITS_weights
@@ -235,22 +191,14 @@ services:
   keryx-diffusion-engine:
     build:
       context: ./services/diffusion-engine
-    container_name: keryx-diffusion-engine
-    ports:
-      - "8008:8000"
+    image: keryx-diffusion-engine
+    profiles: ["manual"]
     environment:
       - PORT=8000
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
       - S3_ENDPOINT=http://minio:9000
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=keryx
-    devices:
-      - nvidia.com/gpu=all
-    security_opt:
-      - label=disable
     volumes:
       - hf-models:/app/huggingface
     networks:
@@ -259,9 +207,8 @@ services:
   keryx-pptx-builder:
     build:
       context: ./services/pptx-builder
-    container_name: keryx-pptx-builder
-    ports:
-      - "8009:8000"
+    image: keryx-pptx-builder
+    profiles: ["manual"]
     environment:
       - PORT=8000
       - S3_ENDPOINT=http://minio:9000
@@ -316,6 +263,7 @@ services:
       context: ./services/frontend
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:3000
+    image: keryx-frontend
     container_name: keryx-frontend
     ports:
       - "8000:3000"

@@ -23,7 +23,7 @@ use crate::infrastructure::docker::ContainerManager;
 use crate::infrastructure::repositories::s3_job_repository::S3JobRepository;
 use crate::domain::ports::job_repository::JobRepository;
 use crate::interfaces::http::middleware::auth::auth_middleware;
-use crate::interfaces::http::job_handlers::create_job_handler;
+use crate::interfaces::http::job_handlers::{create_job_handler, get_job_handler};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -45,8 +45,13 @@ async fn main() -> anyhow::Result<()> {
     let jwt_verifier = Arc::new(JwtVerifier::new(&public_key_pem)?);
 
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx-jobs".to_string());
-    let s3_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
-    let s3_client = aws_sdk_s3::Client::new(&s3_config);
+    let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
+    let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&config);
+    if let Ok(endpoint) = std::env::var("S3_ENDPOINT") {
+        s3_config_builder = s3_config_builder.endpoint_url(endpoint).force_path_style(true);
+    }
+    let s3_config = s3_config_builder.build();
+    let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
     let job_repository = Arc::new(S3JobRepository::new(s3_client, s3_bucket));
 
     let docker_network = std::env::var("DOCKER_NETWORK")
@@ -68,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
             Router::new()
                 .route("/secure-ping", get(interfaces::http::health::health_check))
                 .route("/jobs", post(create_job_handler))
+                .route("/jobs/:job_id", get(get_job_handler))
                 .layer(from_fn_with_state(state.jwt_verifier.clone(), auth_middleware)),
         )
         .with_state(state);

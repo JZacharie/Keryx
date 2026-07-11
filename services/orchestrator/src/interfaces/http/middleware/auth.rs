@@ -14,6 +14,10 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
+    if request.method() == axum::http::Method::OPTIONS {
+        return Ok(next.run(request).await);
+    }
+
     let auth_header = request.headers()
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok());
@@ -27,6 +31,18 @@ pub async fn auth_middleware(
     } else {
         return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": "Missing authorization header"}))));
     };
+
+    if let Ok(expected_key) = std::env::var("API_KEY") {
+        if token == expected_key {
+            let claims = crate::infrastructure::auth::verifier::Claims {
+                sub: "api_key_user".to_string(),
+                exp: 9999999999,
+            };
+            let mut request = request;
+            request.extensions_mut().insert(claims);
+            return Ok(next.run(request).await);
+        }
+    }
 
     match verifier.verify(token) {
         Ok(claims) => {

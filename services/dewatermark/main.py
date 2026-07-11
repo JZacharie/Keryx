@@ -292,7 +292,7 @@ async def clean_video(req: VideoCleanRequest):
 
         # Get FPS
         probe = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+            ["/usr/bin/ffprobe", "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", video_path],
             capture_output=True, text=True
         )
@@ -306,12 +306,12 @@ async def clean_video(req: VideoCleanRequest):
 
         logger.info(f"[{request_id}] Extracting frames at {fps:.2f} fps...")
         subprocess.run(
-            ["ffmpeg", "-y", "-i", video_path, "-q:v", "2",
+            ["/usr/bin/ffmpeg", "-y", "-i", video_path, "-q:v", "2",
              os.path.join(raw_dir, "frame_%04d.jpg")],
             check=True, capture_output=True
         )
 
-        frame_files = sorted(pathlib.Path(raw_dir).glob("frame_*.jpg"))
+        frame_files = sorted(pathlib.Path(raw_dir).glob("frame_*.jpg"), key=lambda p: int(p.stem.split("_")[1]))
         frame_count = len(frame_files)
         logger.info(f"[{request_id}] {frame_count} frames extracted. Processing watermark removal...")
 
@@ -320,7 +320,7 @@ async def clean_video(req: VideoCleanRequest):
             for i, fp in enumerate(frame_files):
                 img = Image.open(str(fp)).convert("RGB")
                 cleaned = remove_notebooklm_watermark_cv2(img)
-                out_path = os.path.join(clean_dir, f"frame_{i+1:04d}.png")
+                out_path = os.path.join(clean_dir, f"frame_{i+1:05d}.png")
                 cleaned.save(out_path, format="PNG")
                 if (i + 1) % 50 == 0 or i == 0:
                     logger.info(f"[{request_id}] Processed {i+1}/{frame_count} frames")
@@ -330,18 +330,30 @@ async def clean_video(req: VideoCleanRequest):
         # 4. Reassemble video
         output_path = os.path.join(tmp_dir, "output.mp4")
         logger.info(f"[{request_id}] Reassembling video...")
-        subprocess.run(
-            ["ffmpeg", "-y",
-             "-framerate", str(fps),
-             "-i", os.path.join(clean_dir, "frame_%04d.png"),
-             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
-             output_path],
-            check=True, capture_output=True
-        )
+        try:
+            subprocess.run(
+                ["/usr/bin/ffmpeg", "-y",
+                 "-framerate", str(fps),
+                 "-i", os.path.join(clean_dir, "frame_%05d.png"),
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                 output_path],
+                check=True, capture_output=True
+            )
+        except subprocess.CalledProcessError as e:
+            stderr_str = e.stderr.decode(errors='replace')
+            logger.error(f"[{request_id}] ffmpeg reassemble failed. stderr: {stderr_str}")
+            raise HTTPException(500, f"ffmpeg reassemble failed: {stderr_str[-1000:]}")
 
         # 5. Upload
         key = req.output_key or f"{req.job_id}/dewatermark/video_clean.mp4"
         result_url = await upload_video_s3(output_path, key)
+
+        shared_dir = os.getenv("SHARED_DATA_DIR")
+        if shared_dir:
+            out_dir = os.path.join(shared_dir, req.job_id, "dewatermark")
+            os.makedirs(out_dir, exist_ok=True)
+            shutil.copy(output_path, os.path.join(out_dir, "cleaned_video.mp4"))
+            logger.info(f"[{request_id}] Copied cleaned video to shared volume: {out_dir}")
 
         elapsed = time.time() - start_time
         logger.info(f"[{request_id}] Done in {elapsed:.1f}s → {result_url}")
