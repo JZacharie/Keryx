@@ -29,12 +29,14 @@ from pydantic import BaseModel
 from urllib.parse import urlparse
 import httpx
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.dewatermark")
+logger.info("Starting keryx-dewatermark with LOG_LEVEL=%s", LOG_LEVEL)
 
 class HealthCheckFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:

@@ -10,7 +10,10 @@ pub async fn create_job_handler(
     State(state): State<AppState>,
     Json(input): Json<CreateJobInput>,
 ) -> impl IntoResponse {
-    let use_case = CreateJobUseCase::new(state.job_repository.clone());
+    let use_case = CreateJobUseCase::new(
+        state.job_repository.clone(),
+        state.container_manager.clone(),
+    );
 
     match use_case.execute(input).await {
         Ok(output) => (StatusCode::CREATED, Json(output)).into_response(),

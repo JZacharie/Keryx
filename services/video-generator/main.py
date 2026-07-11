@@ -19,12 +19,14 @@ from moviepy.editor import ImageSequenceClip
 import httpx
 
 # Configure Logging
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger("keryx.video_generator")
+logger.info("Starting keryx-video-generator with LOG_LEVEL=%s", LOG_LEVEL)
 
 # Optimization: Reduce CUDA fragmentation
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"

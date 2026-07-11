@@ -17,12 +17,14 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("keryx.texts_translation")
+logger.info("Starting keryx-texts-translation with LOG_LEVEL=%s", LOG_LEVEL)
 
 app = FastAPI(title="Keryx Texts Translation", version="1.1.0")
 

@@ -9,21 +9,35 @@ pub struct Claims {
 
 pub struct JwtVerifier {
     decoding_key: DecodingKey,
+    algorithm: Algorithm,
 }
 
 impl JwtVerifier {
     pub fn new(public_key_pem: &str) -> anyhow::Result<Self> {
-        let decoding_key = DecodingKey::from_rsa_pem(public_key_pem.as_bytes())?;
-        Ok(Self { decoding_key })
+        let pem_bytes = public_key_pem.as_bytes();
+
+        let (decoding_key, algorithm) = if public_key_pem.contains("BEGIN RSA") {
+            (
+                DecodingKey::from_rsa_pem(pem_bytes)?,
+                Algorithm::RS256,
+            )
+        } else {
+            (
+                DecodingKey::from_ed_pem(pem_bytes)?,
+                Algorithm::EdDSA,
+            )
+        };
+
+        Ok(Self {
+            decoding_key,
+            algorithm,
+        })
     }
 
     pub fn verify(&self, token: &str) -> anyhow::Result<Claims> {
-        let mut validation = Validation::new(Algorithm::RS256);
+        let mut validation = Validation::new(self.algorithm);
         validation.validate_exp = true;
-        
-        // Note: You can add issuer/audience validation here if needed
-        // validation.set_issuer(&["my-auth-server"]);
-        
+
         let token_data = decode::<Claims>(token, &self.decoding_key, &validation)?;
         Ok(token_data.claims)
     }
