@@ -8,7 +8,7 @@ pillow==10.4.0
 python-multipart==0.0.27
 boto3
 aioboto3==13.4.0
-pydantic==2.13.3
+pydantic==2.13.4
 huggingface-hub==0.36.2
 moviepy==1.0.3
 numpy<3
