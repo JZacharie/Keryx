@@ -2,4 +2,4 @@ gradio>=4.0,<6.0
 pillow>=10.0,<12.0
 easyocr>=1.7,<2.0
 google-generativeai>=0.8,<1.0
-numpy>=1.24,<2.0
+numpy>=2.5,<2.6
