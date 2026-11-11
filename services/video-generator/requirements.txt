@@ -1,4 +1,4 @@
-fastapi==0.162.2
+fastapi==0.162.4
 uvicorn==0.27.1
 diffusers==0.42.1
 transformers==4.44.2
