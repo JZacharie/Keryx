@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-use aws_sdk_s3::Client;
 use crate::domain::entities::job::Job;
 use crate::domain::ports::job_repository::JobRepository;
+use async_trait::async_trait;
+use aws_sdk_s3::Client;
 
 pub struct S3JobRepository {
     client: Client,
@@ -20,7 +20,8 @@ impl JobRepository for S3JobRepository {
         let key = format!("jobs/{}.json", job.id);
         let body = serde_json::to_vec(job)?;
 
-        self.client.put_object()
+        self.client
+            .put_object()
             .bucket(&self.bucket)
             .key(key)
             .body(body.into())
@@ -33,7 +34,9 @@ impl JobRepository for S3JobRepository {
     async fn get_by_id(&self, job_id: &str) -> anyhow::Result<Option<Job>> {
         let key = format!("jobs/{}.json", job_id);
 
-        let result = self.client.get_object()
+        let result = self
+            .client
+            .get_object()
             .bucket(&self.bucket)
             .key(key)
             .send()
@@ -44,7 +47,7 @@ impl JobRepository for S3JobRepository {
                 let bytes = output.body.collect().await?.into_bytes();
                 let job = serde_json::from_slice(&bytes)?;
                 Ok(Some(job))
-            },
+            }
             Err(e) => {
                 let service_error = e.into_service_error();
                 if service_error.is_no_such_key() {
@@ -59,7 +62,9 @@ impl JobRepository for S3JobRepository {
     async fn exists(&self, job_id: &str) -> anyhow::Result<bool> {
         let key = format!("jobs/{}.json", job_id);
 
-        let result = self.client.head_object()
+        let result = self
+            .client
+            .head_object()
             .bucket(&self.bucket)
             .key(key)
             .send()

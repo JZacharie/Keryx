@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use anyhow::Result;
-use std::path::PathBuf;
+use async_trait::async_trait;
+use std::path::Path;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct TranscriptionResult {
@@ -16,5 +16,5 @@ pub struct TranscriptionSegment {
 
 #[async_trait]
 pub trait STTRepository: Send + Sync {
-    async fn transcribe(&self, audio_path: &PathBuf) -> Result<TranscriptionResult>;
+    async fn transcribe(&self, audio_path: &Path) -> Result<TranscriptionResult>;
 }
