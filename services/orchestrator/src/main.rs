@@ -1,5 +1,5 @@
-mod domain;
 mod application;
+mod domain;
 mod infrastructure;
 mod interfaces;
 
@@ -18,12 +18,12 @@ use tower::Service;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::domain::ports::job_repository::JobRepository;
 use crate::infrastructure::auth::verifier::JwtVerifier;
 use crate::infrastructure::docker::ContainerManager;
 use crate::infrastructure::repositories::s3_job_repository::S3JobRepository;
-use crate::domain::ports::job_repository::JobRepository;
-use crate::interfaces::http::middleware::auth::auth_middleware;
 use crate::interfaces::http::job_handlers::{create_job_handler, get_job_handler};
+use crate::interfaces::http::middleware::auth::auth_middleware;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -35,7 +35,9 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -45,19 +47,26 @@ async fn main() -> anyhow::Result<()> {
     let jwt_verifier = Arc::new(JwtVerifier::new(&public_key_pem)?);
 
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "keryx-jobs".to_string());
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
+    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .load()
+        .await;
     let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&config);
     if let Ok(endpoint) = std::env::var("S3_ENDPOINT") {
-        s3_config_builder = s3_config_builder.endpoint_url(endpoint).force_path_style(true);
+        s3_config_builder = s3_config_builder
+            .endpoint_url(endpoint)
+            .force_path_style(true);
     }
     let s3_config = s3_config_builder.build();
     let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
     let job_repository = Arc::new(S3JobRepository::new(s3_client, s3_bucket));
 
-    let docker_network = std::env::var("DOCKER_NETWORK")
-        .unwrap_or_else(|_| "keryx_keryx-net".to_string());
+    let docker_network =
+        std::env::var("DOCKER_NETWORK").unwrap_or_else(|_| "keryx_keryx-net".to_string());
     let container_manager = Arc::new(ContainerManager::new(&docker_network)?);
-    tracing::info!("ContainerManager initialized on network: {}", docker_network);
+    tracing::info!(
+        "ContainerManager initialized on network: {}",
+        docker_network
+    );
 
     let state = AppState {
         jwt_verifier,
@@ -74,7 +83,10 @@ async fn main() -> anyhow::Result<()> {
                 .route("/secure-ping", get(interfaces::http::health::health_check))
                 .route("/jobs", post(create_job_handler))
                 .route("/jobs/:job_id", get(get_job_handler))
-                .layer(from_fn_with_state(state.jwt_verifier.clone(), auth_middleware)),
+                .layer(from_fn_with_state(
+                    state.jwt_verifier.clone(),
+                    auth_middleware,
+                )),
         )
         .with_state(state);
 
