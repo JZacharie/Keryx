@@ -1,4 +1,4 @@
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -17,15 +17,9 @@ impl JwtVerifier {
         let pem_bytes = public_key_pem.as_bytes();
 
         let (decoding_key, algorithm) = if public_key_pem.contains("BEGIN RSA") {
-            (
-                DecodingKey::from_rsa_pem(pem_bytes)?,
-                Algorithm::RS256,
-            )
+            (DecodingKey::from_rsa_pem(pem_bytes)?, Algorithm::RS256)
         } else {
-            (
-                DecodingKey::from_ed_pem(pem_bytes)?,
-                Algorithm::EdDSA,
-            )
+            (DecodingKey::from_ed_pem(pem_bytes)?, Algorithm::EdDSA)
         };
 
         Ok(Self {
