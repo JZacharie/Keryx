@@ -60,7 +60,8 @@ impl ContainerManager {
     pub async fn start_worker(&self, spec: &WorkerSpec) -> anyhow::Result<WorkerHandle> {
         tracing::info!(
             "[{}] Acquiring worker slot (gpu={})",
-            spec.container_name, spec.needs_gpu
+            spec.container_name,
+            spec.needs_gpu
         );
         let gpu_guard = if spec.needs_gpu {
             tracing::info!("[{}] Waiting for GPU mutex...", spec.container_name);
@@ -79,7 +80,8 @@ impl ContainerManager {
     async fn start_container_inner(&self, spec: &WorkerSpec) -> anyhow::Result<String> {
         tracing::info!(
             "[{}] Creating container from image '{}'...",
-            spec.container_name, spec.image
+            spec.container_name,
+            spec.image
         );
 
         let mut port_bindings = HashMap::new();
@@ -149,16 +151,20 @@ impl ContainerManager {
         self.docker
             .start_container(&spec.container_name, None::<StartContainerOptions<String>>)
             .await?;
-        tracing::info!("[{}] Container started, waiting for health check...", spec.container_name);
-
-        let health_url = format!(
-            "http://{}:{}/health",
-            spec.container_name, spec.port
+        tracing::info!(
+            "[{}] Container started, waiting for health check...",
+            spec.container_name
         );
 
-        self.wait_for_health(&health_url, spec.container_name.as_str(), 60).await?;
+        let health_url = format!("http://{}:{}/health", spec.container_name, spec.port);
 
-        tracing::info!("[{}] Health check OK, container is ready", spec.container_name);
+        self.wait_for_health(&health_url, spec.container_name.as_str(), 60)
+            .await?;
+
+        tracing::info!(
+            "[{}] Health check OK, container is ready",
+            spec.container_name
+        );
 
         Ok(spec.container_name.clone())
     }
@@ -225,22 +231,44 @@ impl ContainerManager {
         logs
     }
 
-    async fn wait_for_health(&self, url: &str, container_name: &str, max_retries: u32) -> anyhow::Result<()> {
+    async fn wait_for_health(
+        &self,
+        url: &str,
+        container_name: &str,
+        max_retries: u32,
+    ) -> anyhow::Result<()> {
         for attempt in 1..=max_retries {
             match self.http_client.get(url).send().await {
                 Ok(resp) if resp.status().is_success() => {
-                    tracing::info!("[{}] Health check succeeded on attempt {}/{}", container_name, attempt, max_retries);
+                    tracing::info!(
+                        "[{}] Health check succeeded on attempt {}/{}",
+                        container_name,
+                        attempt,
+                        max_retries
+                    );
                     return Ok(());
                 }
                 Ok(resp) => {
                     let status = resp.status();
                     if attempt % 10 == 0 || attempt == 1 {
-                        tracing::info!("[{}] Health check attempt {}/{} returned {}", container_name, attempt, max_retries, status);
+                        tracing::info!(
+                            "[{}] Health check attempt {}/{} returned {}",
+                            container_name,
+                            attempt,
+                            max_retries,
+                            status
+                        );
                     }
                 }
                 Err(e) => {
                     if attempt % 10 == 0 || attempt == 1 {
-                        tracing::info!("[{}] Health check attempt {}/{} failed: {}", container_name, attempt, max_retries, e);
+                        tracing::info!(
+                            "[{}] Health check attempt {}/{} failed: {}",
+                            container_name,
+                            attempt,
+                            max_retries,
+                            e
+                        );
                     }
                 }
             }
@@ -261,12 +289,7 @@ impl ContainerManager {
         body: serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
         let url = format!("http://{}:{}{}", container_name, port, path);
-        let resp = self
-            .http_client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await?;
+        let resp = self.http_client.post(&url).json(&body).send().await?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
