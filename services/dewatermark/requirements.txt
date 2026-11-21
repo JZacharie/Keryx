@@ -3,7 +3,7 @@ uvicorn[standard]==0.30.6
 pydantic==2.13.4
 aioboto3==13.4.0
 httpx==0.28.1
-opencv-python-headless<4.14
+opencv-python-headless<4.15
 Pillow==10.4.0
 numpy<3
 # SDXL optionnel — décommenter si USE_SDXL=true

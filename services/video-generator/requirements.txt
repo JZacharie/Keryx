@@ -13,5 +13,5 @@ huggingface-hub==0.36.2
 moviepy==1.0.3
 numpy<3
 requests==2.33.1
-opencv-python-headless<4.14
+opencv-python-headless<4.15
 httpx==0.28.1
