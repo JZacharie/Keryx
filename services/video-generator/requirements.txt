@@ -14,4 +14,4 @@ moviepy==1.0.3
 numpy<3
 requests==2.33.1
 opencv-python-headless<4.15
-httpx==0.28.1
+httpx==0.29.0

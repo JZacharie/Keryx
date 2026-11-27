@@ -7,7 +7,7 @@ safetensors>=0.8.0
 pillow==10.4.0
 python-multipart==0.0.34
 aioboto3==13.4.0
-httpx==0.28.1
+httpx==0.29.0
 pydantic==2.14.4
 huggingface-hub==0.36.2
 opencv-python-headless<4.15
