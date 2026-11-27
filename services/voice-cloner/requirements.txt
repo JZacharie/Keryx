@@ -2,7 +2,7 @@ fastapi==0.165.0
 uvicorn==0.30.6
 python-multipart==0.0.34
 pytest
-httpx==0.28.1
+httpx==0.29.0
 aioboto3==13.4.0
 boto3
 # TTS and transformers are pre-installed for better caching
