@@ -9,7 +9,7 @@ tqdm
 pydub
 fastapi
 uvicorn
-requests==2.33.1
+requests==2.34.2
 python-multipart
 opencv-python-headless<4.15
 ffmpeg-python
